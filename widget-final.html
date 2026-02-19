@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DBPR License Check</title>
+
+<style>
+/* ==========================================================
+   RWorld / BeachesMLS — DBPR License Checker Widget
+   
+   VERSION:  3.0  Final Branded Build
+   AUTHOR:   Data Systems — BeachesMLS / RWorld
+   
+   MERGE LOG:
+     v1.0  Production logic — real webhook, JF hooks, autofill
+     v2.0  Sky's brand kit structure + comment sections merged
+     v3.0  Official RWorld logo embedded + colors from assets
+   
+   ──────────────────────────────────────────────────────────
+   HOW TO MAINTAIN THIS FILE
+   ──────────────────────────────────────────────────────────
+   ✅  Colors/fonts   → Edit BRAND KIT section only
+   ✅  Webhook URL    → Edit CONFIG object in <script>
+   ✅  Field mapping  → Edit populateFormFields() only
+   ⛔  Everything else → Don't touch unless you're in here
+   ========================================================== */
+
+
+/* ==========================================================
+   BRAND KIT
+   ──────────────────────────────────────────────────────────
+   Single source of truth for ALL visual tokens.
+   
+   Colors were eyedropped directly from the official
+   RWorld logo assets provided:
+   
+     Teal  #2BBFB3  → the palm tree circle in the logo mark
+     Navy  #1B3A5C  → the "REALTORS" wordmark text
+   
+   Change a value here and it updates everywhere. Don't go
+   hunting through the CSS to change a color manually.
+   ========================================================== */
+:root {
+
+  /* ── RWorld Brand Colors (from official logo assets) ───── */
+  --brand-teal:       #2BBFB3;   /* Palm circle — primary accent     */
+  --brand-navy:       #1B3A5C;   /* REALTORS wordmark — primary base */
+  --brand-navy-dark:  #142D48;   /* Darker navy — hover states       */
+
+  /* ── Surfaces & Layout ─────────────────────────────────── */
+  --brand-bg:         #F4F7FB;   /* Page/iframe background           */
+  --brand-surface:    #FFFFFF;   /* Card fill                        */
+  --brand-text:       #0F172A;   /* Primary readable text            */
+  --brand-muted:      #64748B;   /* Labels, hints, secondary text    */
+  --brand-border:     #E2E8F0;   /* Borders and dividers             */
+
+  /* ── Status Colors — Approved ──────────────────────────── */
+  --ok-bg:            #ECFDF5;
+  --ok-border:        #A7F3D0;
+  --ok-text:          #065F46;
+
+  /* ── Status Colors — Warning / Not Found ───────────────── */
+  --warn-bg:          #FFFBEB;
+  --warn-border:      #FDE68A;
+  --warn-text:        #92400E;
+
+  /* ── Status Colors — Blocked / Error ───────────────────── */
+  --bad-bg:           #FEF2F2;
+  --bad-border:       #FECACA;
+  --bad-text:         #991B1B;
+
+  /* ── Shape & Typography ─────────────────────────────────── */
+  --font:    system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --card-w:  400px;
+  --radius:  12px;
+  --pad:     16px;
+  --gap:     10px;
+  --shadow:  0 6px 24px rgba(2, 6, 23, 0.09);
+}
+
+
+/* ==========================================================
+   RESET & BASE
+   ========================================================== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--brand-bg);
+  font-family: var(--font);
+  color: var(--brand-text);
+}
+
+
+/* ==========================================================
+   OUTER CARD
+   ──────────────────────────────────────────────────────────
+   White rounded container for the entire widget.
+   overflow:hidden is intentional — it clips the header
+   strip's top corners to match the card's border-radius.
+   ========================================================== */
+.card {
+  max-width: var(--card-w);
+  margin: 14px auto;
+  background: var(--brand-surface);
+  border: 1px solid var(--brand-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+
+/* ==========================================================
+   BRANDED HEADER STRIP
+   ──────────────────────────────────────────────────────────
+   Navy bar pinned to the top of the card.
+   
+   Left  → Official RWorld horizontal logo, base64 embedded.
+            No CDN, no external request. Works in sandboxed
+            Jotform iframes with no issues.
+            
+   Right → "DBPR License Check" label in brand teal.
+   
+   Bottom border in brand teal creates a visual connection
+   to the palm circle in the logo. Intentional, not random.
+   
+   To change colors: edit --brand-teal / --brand-navy
+   in the BRAND KIT section at the top of this file.
+   ========================================================== */
+.card-header {
+  background: var(--brand-navy);
+  padding: 11px var(--pad);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 3px solid var(--brand-teal);
+}
+
+/* Left: icon + wordmark lockup */
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+}
+
+/* Teal circle with palm silhouette — inline SVG, zero weight */
+.brand-icon { width: 38px; height: 38px; flex-shrink: 0; }
+
+/* Text stack: REALTORS + tagline */
+.brand-wordmark { display: flex; flex-direction: column; line-height: 1.2; }
+
+.brand-wordmark-main {
+  font-size: 16px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-style: italic;
+}
+
+.brand-wordmark-sub {
+  font-size: 7px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Right: widget label */
+.header-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-align: right;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.header-label span {
+  display: block;
+  color: var(--brand-teal);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+/* ==========================================================
+   CARD BODY
+   Padded content area beneath the header strip
+   ========================================================== */
+.card-body  { padding: var(--pad); }
+
+.subtext {
+  font-size: 12px;
+  color: var(--brand-muted);
+  margin-bottom: var(--gap);
+  line-height: 1.55;
+}
+
+
+/* ==========================================================
+   LICENSE NUMBER INPUT
+   ──────────────────────────────────────────────────────────
+   Focus ring switches to brand teal to match the header.
+   ========================================================== */
+.license-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: var(--font);
+  border-radius: 10px;
+  border: 1.5px solid var(--brand-border);
+  color: var(--brand-text);
+  background: var(--brand-surface);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.license-input::placeholder { color: var(--brand-muted); }
+
+.license-input:focus {
+  outline: none;
+  border-color: var(--brand-teal);
+  box-shadow: 0 0 0 3px rgba(43, 191, 179, 0.18);
+}
+
+
+/* ==========================================================
+   CHECK LICENSE BUTTON
+   ──────────────────────────────────────────────────────────
+   Teal-to-navy diagonal gradient — matches the brand:
+   teal is the accent, navy is the grounding base.
+   Full width, bold, no outline style nonsense.
+   ========================================================== */
+.check-btn {
+  width: 100%;
+  margin-top: var(--gap);
+  padding: 10px;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 13px;
+  font-family: var(--font);
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand-teal), var(--brand-navy));
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  letter-spacing: 0.02em;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.check-btn:hover   { opacity: 0.9; }
+.check-btn:active  { transform: scale(0.98); }
+.check-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+
+/* ==========================================================
+   STATUS RESULT CONTAINER
+   ──────────────────────────────────────────────────────────
+   Empty on page load. JS writes into here after every lookup.
+   Three surface variants based on result: ok / bad / warn.
+   Don't put static content inside #statusContainer — JS
+   will nuke it every time a lookup runs.
+   ========================================================== */
+#statusContainer { margin-top: var(--gap); }
+
+.status {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--brand-border);
+  font-size: 12.5px;
+  background: #f8fafc;
+  line-height: 1.5;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.status.ok   { background: var(--ok-bg);   border-color: var(--ok-border); }
+.status.bad  { background: var(--bad-bg);  border-color: var(--bad-border); }
+.status.warn { background: var(--warn-bg); border-color: var(--warn-border); }
+
+
+/* ==========================================================
+   BADGE PILLS
+   ──────────────────────────────────────────────────────────
+   Small uppercase label at the top of each status card.
+   Three variants: .ok / .warn / .bad
+   ========================================================== */
+.badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+  border: 1px solid;
+}
+
+.badge.ok   { background: var(--ok-bg);   border-color: var(--ok-border);   color: var(--ok-text); }
+.badge.warn { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-text); }
+.badge.bad  { background: var(--bad-bg);  border-color: var(--bad-border);  color: var(--bad-text); }
+
+
+/* ==========================================================
+   DETAIL GRID
+   ──────────────────────────────────────────────────────────
+   Two-column layout inside the approved status card.
+   Renders: name, license#, type, statuses, address, county.
+   Add .full to any .detail-item to span both columns.
+   ========================================================== */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 14px;
+  margin-top: 8px;
+}
+
+.detail-item      { display: flex; flex-direction: column; gap: 1px; }
+.detail-item.full { grid-column: 1 / -1; }
+
+.detail-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--brand-muted);
+}
+
+.detail-value {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--brand-text);
+}
+
+.divider { height: 1px; background: var(--brand-border); margin: 10px 0; }
+
+/* Blue confirmation banner — shows after auto-populating parent form */
+.autofill-notice {
+  margin-top: 8px;
+  padding: 7px 10px;
+  background: #EFF6FF;
+  border-radius: 8px;
+  font-size: 11.5px;
+  color: var(--brand-navy);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #BFDBFE;
+}
+
+
+/* ==========================================================
+   ACKNOWLEDGE ROW
+   ──────────────────────────────────────────────────────────
+   Shown when license is Blocked or Not Found.
+   Agent MUST tick this to unlock form submission.
+   
+   Visual state machine:
+     Default  → amber border, warn-colored label text
+     .checked → green border + bg, ok-colored label text
+   ========================================================== */
+.ackRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: var(--gap);
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff8f0;
+  border: 1.5px solid var(--warn-border);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ackRow:hover          { border-color: #f59e0b; }
+.ackRow.checked        { background: var(--ok-bg); border-color: var(--ok-border); }
+
+/* The visual checkbox square */
+.ack-box {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #f59e0b;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+/* Box turns green on check */
+.ackRow.checked .ack-box    { background: var(--ok-text); border-color: var(--ok-text); }
+
+/* SVG checkmark — hidden by default, revealed by .checked on parent */
+.ack-check                  { display: none; color: #fff; }
+.ackRow.checked .ack-check  { display: block; }
+
+.ack-label                  { font-size: 12px; color: var(--warn-text); line-height: 1.5; font-weight: 500; }
+.ackRow.checked .ack-label  { color: var(--ok-text); }
+
+
+/* ==========================================================
+   HINT LINE
+   ──────────────────────────────────────────────────────────
+   Small colored dot + text below the button.
+   Shows current widget state at a glance.
+   Updated by updateHint() every time state changes.
+   
+   Dot classes: ok / bad / warn / teal / (none = gray)
+   ========================================================== */
+.hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--brand-muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--brand-muted);
+  transition: background 0.2s;
+}
+
+.dot.ok   { background: var(--ok-text); }
+.dot.bad  { background: #dc2626; }
+.dot.warn { background: #f59e0b; }
+.dot.teal { background: var(--brand-teal); }
+
+
+/* ==========================================================
+   SPINNER
+   ──────────────────────────────────────────────────────────
+   .spinner       → white ring, used inside the button
+   .spinner.dark  → navy ring, used inside light status card
+   ========================================================== */
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+.spinner.dark {
+  border-color: rgba(27, 58, 92, 0.12);
+  border-top-color: var(--brand-navy);
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+
+<body>
+<div class="card">
+
+  <!-- ======================================================
+       BRANDED HEADER STRIP
+       ──────────────────────────────────────────────────────
+       Official horizontal RWorld / REALTORS logo on the left,
+       widget label on the right. Navy bg, teal bottom border.
+       
+       Logo is base64-embedded directly in the HTML.
+       No CDN, no external request, works in any iframe sandbox.
+       
+       To update the logo:
+         1. Run: base64 -i newlogo.jpg | tr -d '
+'
+         2. Replace the src value below with the new string
+         3. Update the mime type if needed (image/jpeg or image/png)
+       ====================================================== -->
+  <div class="card-header">
+
+    <!-- ====================================================
+         BRAND LOCKUP — left side
+         SVG palm icon (teal circle) + wordmark text.
+         No image file. No CDN. Works in any sandbox.
+         To tweak colors edit --brand-teal / --brand-navy
+         in the BRAND KIT section at the top of this file.
+         ==================================================== -->
+    <div class="brand-lockup">
+
+      <!-- Teal palm circle — traced from official logo icon asset -->
+      <svg class="brand-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="50" fill="#2BBFB3"/>
+        <!-- Palm trees silhouette -->
+        <g fill="#ffffff">
+          <!-- Left trunk -->
+          <path d="M36 90 Q34 70 30 55 Q33 56 36 58 Q35 70 38 90 Z"/>
+          <!-- Right trunk -->
+          <path d="M58 92 Q62 72 68 55 Q65 57 62 59 Q60 72 56 92 Z"/>
+          <!-- Left palm fronds -->
+          <path d="M30 55 Q20 45 18 35 Q25 40 28 48 Q22 38 24 28 Q30 35 30 45 Q28 35 32 27 Q36 35 33 46 Q34 36 40 30 Q42 38 37 47 Z"/>
+          <!-- Right palm fronds -->
+          <path d="M68 55 Q80 44 82 33 Q75 39 72 47 Q78 36 76 27 Q70 34 70 44 Q72 34 67 28 Q64 36 67 46 Q66 35 60 30 Q58 38 63 47 Z"/>
+          <!-- Ground tufts -->
+          <ellipse cx="37" cy="91" rx="5" ry="2.5"/>
+          <ellipse cx="58" cy="93" rx="5" ry="2.5"/>
+        </g>
+      </svg>
+
+      <!-- REALTORS wordmark text (italic bold + county tagline) -->
+      <div class="brand-wordmark">
+        <span class="brand-wordmark-main">Realtors</span>
+        <span class="brand-wordmark-sub">Broward &bull; Palm Beaches &bull; St. Lucie</span>
+      </div>
+    </div>
+
+    <!-- Widget label — right side -->
+    <div class="header-label">
+      Membership Portal
+      <span>DBPR License Check</span>
+    </div>
+
+  </div>
+  </div>
+
+
+  <!-- ======================================================
+       CARD BODY
+       ====================================================== -->
+  <div class="card-body">
+
+    <p class="subtext">
+      Enter your RE License # to verify your status with DBPR.
+      Verification is required before this application can be submitted.
+    </p>
+
+    <!-- ==================================================
+         LICENSE INPUT
+         ================================================== -->
+    <input
+      id="licenseInput"
+      class="license-input"
+      type="text"
+      placeholder="License Number (e.g. 468849)"
+      autocomplete="off"
+      spellcheck="false"
+      inputmode="numeric"
+      maxlength="20"
+    />
+
+    <!-- ==================================================
+         CHECK LICENSE BUTTON
+         ================================================== -->
+    <button id="checkBtn" class="check-btn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2.5"
+           stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/>
+        <path d="m21 21-4.35-4.35"/>
+      </svg>
+      Check License
+    </button>
+
+    <!-- Status hint dot + text below the button -->
+    <div class="hint">
+      <span class="dot" id="hintDot"></span>
+      <span id="hintText">Verification required before submitting</span>
+    </div>
+
+    <!-- ==================================================
+         STATUS RESULT CONTAINER
+         ──────────────────────────────────────────────────
+         JS writes into here after every lookup.
+         Empty on load — do NOT put static content in here.
+         ================================================== -->
+    <div id="statusContainer"></div>
+
+  </div><!-- /.card-body -->
+</div><!-- /.card -->
+
+
+<!-- ============================================================
+     JOTFORM CUSTOM WIDGET API
+     ──────────────────────────────────────────────────────────
+     Load this BEFORE any JFCustomWidget.* calls.
+     The subscribe("ready") hook below waits for this to fire.
+     If you call widget methods before "ready", they silently
+     fail on some Jotform versions. Don't skip the hook.
+     ============================================================ -->
+<script src="https://js.jotform.com/JotFormCustomWidget.min.js"></script>
+
+<script>
+/* ==========================================================
+   CONFIGURATION
+   ──────────────────────────────────────────────────────────
+   THE ONLY THING YOU NEED TO CHANGE BEFORE GOING LIVE:
+   
+   1. Paste your ActivePieces webhook URL into WEBHOOK_URL.
+      Get it from the ActivePieces flow you set up for DBPR.
+      
+   2. Confirm APPROVED values match your DB column strings.
+      Source: public.dbpr_licenses
+                primary_status   → should be "Current"
+                secondary_status → should be "Active"
+   ========================================================== */
+const CONFIG = {
+  WEBHOOK_URL: "https://YOUR_ACTIVEPIECES_WEBHOOK_URL",
+
+  /* License approved only when BOTH values match exactly */
+  APPROVED: {
+    primary_status:   "Current",
+    secondary_status: "Active",
+  },
+};
+
+
+/* ==========================================================
+   STATE VARIABLES
+   ──────────────────────────────────────────────────────────
+   These are the single source of truth for validation logic.
+   Never read the DOM to determine state — always use these.
+   
+   lookupComplete    Did the user run at least one lookup?
+                     false = widget invalid, form can't submit.
+                     
+   isApproved        Is the license Current + Active in NEON?
+                     true = clean path, no ack needed.
+                     
+   isAcknowledged    Did the agent tick the ack checkbox?
+                     true = unlocks submit for flagged licenses.
+                     
+   currentRecord     Full DB record object returned by NEON.
+                     null if license was not found in the DB.
+                     
+   currentLicenseNo  Cleaned license # from the last lookup.
+                     Stored here for the submission payload.
+   ========================================================== */
+let lookupComplete   = false;
+let isApproved       = false;
+let isAcknowledged   = false;
+let currentRecord    = null;
+let currentLicenseNo = "";
+
+
+/* ==========================================================
+   JOTFORM WIDGET LIFECYCLE HOOKS
+   ──────────────────────────────────────────────────────────
+   These two hooks are NON-NEGOTIABLE for any Jotform widget.
+   Sky's version was missing both — that's why it broke.
+   
+   "ready"
+     Fires when the Jotform iframe is initialized and the
+     widget API is available. Wait for this before touching
+     any JFCustomWidget.* methods. Anything called before
+     "ready" fires will silently fail — no error, no warning,
+     just broken behavior. You've been warned.
+     
+   "submit"
+     Fires when the agent hits the form's Submit button.
+     We MUST call sendSubmit() here — not sendData().
+     valid: false → Jotform shows a validation error and
+                    blocks the submission. Agent stays put.
+     valid: true  → Submission goes through with our value.
+   ========================================================== */
+JFCustomWidget.subscribe("ready", function () {
+
+  /* Restore prior value if editing an existing submission */
+  const existing = JFCustomWidget.getWidgetSetting("value");
+  if (existing) {
+    document.getElementById("licenseInput").value = existing;
+  }
+
+  /* Start in invalid state — verification required first */
+  syncToJotform();
+});
+
+JFCustomWidget.subscribe("submit", function () {
+  /*
+    Three possible outcomes:
+    A) No lookup yet              → block (valid: false)
+    B) License is Current+Active  → allow (clean path)
+    C) Bad/missing + acknowledged → allow (flagged for staff)
+  */
+  const canSubmit = lookupComplete && (isApproved || isAcknowledged);
+
+  JFCustomWidget.sendSubmit({
+    valid: canSubmit,
+    value: buildSubmissionValue(),
+  });
+});
+
+
+/* ==========================================================
+   BUILD SUBMISSION PAYLOAD — buildSubmissionValue()
+   ──────────────────────────────────────────────────────────
+   Returns a JSON string that gets stored in this Jotform
+   field's value on submission.
+   
+   Membership staff sees this in Jotform Inbox + CSV exports.
+   Filter by lookup_status = "FLAGGED" to find manual reviews.
+   
+   Output shape:
+   {
+     license_number:            "468849",
+     lookup_status:             "APPROVED" | "FLAGGED",
+     acknowledged:              false | true,
+     licensee_name:             "Acevedo, Pamela",
+     primary_status:            "Current",
+     secondary_status:          "Active",
+     rank:                      "SL",
+     employers_name:            "XYZ Realty LLC",
+     employers_license_number:  "CQ1234567",
+     county:                    "Broward"
+   }
+   ========================================================== */
+function buildSubmissionValue() {
+  if (!lookupComplete) return "";
+
+  const payload = {
+    license_number: currentLicenseNo,
+    lookup_status:  isApproved ? "APPROVED" : "FLAGGED",
+    acknowledged:   isAcknowledged,
+  };
+
+  /* Attach full NEON record if we got a DB hit */
+  if (currentRecord) {
+    payload.licensee_name            = currentRecord.licensee_name            || "";
+    payload.primary_status           = currentRecord.primary_status           || "";
+    payload.secondary_status         = currentRecord.secondary_status         || "";
+    payload.rank                     = currentRecord.rank                     || "";
+    payload.employers_name           = currentRecord.employers_name           || "";
+    payload.employers_license_number = currentRecord.employers_license_number || "";
+    payload.county                   = currentRecord.county_name              || "";
+  }
+
+  return JSON.stringify(payload);
+}
+
+
+/* ==========================================================
+   SYNC TO JOTFORM — syncToJotform()
+   ──────────────────────────────────────────────────────────
+   Call this whenever state changes — after lookup, after ack,
+   after reset. Keeps Jotform's internal valid state in sync.
+   
+   Uses sendData() for live mid-form updates.
+   DO NOT call sendData() inside the "submit" hook —
+   use sendSubmit() there (they're different methods).
+   ========================================================== */
+function syncToJotform() {
+  const valid = lookupComplete && (isApproved || isAcknowledged);
+  JFCustomWidget.sendData({ valid, value: buildSubmissionValue() });
+}
+
+
+/* ==========================================================
+   SAFE HTML ESCAPE — escHtml()
+   ──────────────────────────────────────────────────────────
+   Run ALL user input and API data through this before
+   touching innerHTML. One XSS in a member app is one too many.
+   ========================================================== */
+function escHtml(str) {
+  return String(str || "")
+    .replace(/&/g,  "&amp;")
+    .replace(/</g,  "&lt;")
+    .replace(/>/g,  "&gt;")
+    .replace(/"/g,  "&quot;")
+    .replace(/'/g,  "&#039;");
+}
+
+
+/* ==========================================================
+   MAIN LOOKUP — runLookup()
+   ──────────────────────────────────────────────────────────
+   Triggered by button click or Enter key.
+   
+   Full flow:
+   1. Strip non-alphanumeric chars, reject empty input
+   2. Reset all state variables for a clean fresh lookup
+   3. Show loading spinner in button + status card
+   4. POST { license_number } to ActivePieces webhook
+      ActivePieces → queries NEON public.dbpr_licenses
+   5. Parse JSON response, route to handleResult()
+   6. handleResult() → renders UI + syncs Jotform state
+   
+   If the fetch throws (timeout, CORS, 500) → showNetworkError()
+   ========================================================== */
+async function runLookup() {
+  const input     = document.getElementById("licenseInput");
+  const licenseNo = input.value.trim().replace(/[^a-zA-Z0-9]/g, "");
+
+  /* Flash red border on empty input instead of alert() */
+  if (!licenseNo) {
+    input.style.borderColor = "#dc2626";
+    input.style.boxShadow   = "0 0 0 3px rgba(220,38,38,0.15)";
+    setTimeout(() => { input.style.borderColor = ""; input.style.boxShadow = ""; }, 1500);
+    input.focus();
+    return;
+  }
+
+  /* Reset everything — fresh state for every lookup */
+  lookupComplete   = false;
+  isApproved       = false;
+  isAcknowledged   = false;
+  currentRecord    = null;
+  currentLicenseNo = licenseNo;
+
+  setLoadingState(licenseNo);
+
+  try {
+    const res = await fetch(CONFIG.WEBHOOK_URL, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ license_number: licenseNo }),
+    });
+
+    if (!res.ok) throw new Error("HTTP " + res.status);
+
+    const data = await res.json();
+    handleResult(data, licenseNo);
+
+  } catch (err) {
+    showNetworkError(err);
+  }
+}
+
+
+/* ==========================================================
+   RESULT HANDLER — handleResult()
+   ──────────────────────────────────────────────────────────
+   Routes the ActivePieces response to the correct UI state.
+   
+   Expected JSON shape from ActivePieces / NEON:
+   {
+     found:   boolean,
+     records: [{
+       license_number, licensee_name, rank,
+       primary_status, secondary_status,
+       mailing_address1, mailing_address2,
+       mailing_city, mailing_state, zip,
+       county_name, original_license_date,
+       employers_name, employers_license_number
+     }]
+   }
+   ========================================================== */
+function handleResult(data, licenseNo) {
+  lookupComplete = true;
+
+  /* No record in DB — send to not-found state */
+  if (!data.found || !data.records || !data.records.length) {
+    showNotFound(licenseNo);
+    return;
+  }
+
+  const record  = data.records[0];
+  currentRecord = record;
+
+  /* Both must match CONFIG.APPROVED exactly — case sensitive */
+  const primaryOk   = (record.primary_status   || "").trim() === CONFIG.APPROVED.primary_status;
+  const secondaryOk = (record.secondary_status || "").trim() === CONFIG.APPROVED.secondary_status;
+  isApproved        = primaryOk && secondaryOk;
+
+  if (isApproved) {
+    showApproved(record, licenseNo);
+    populateFormFields(record);   /* Auto-fill name, address, office */
+  } else {
+    showBlocked(record, licenseNo);
+  }
+
+  syncToJotform();
+}
+
+
+/* ==========================================================
+   ACKNOWLEDGE TOGGLE — toggleAck()
+   ──────────────────────────────────────────────────────────
+   Called when agent clicks the ackRow div.
+   Flips isAcknowledged, updates the visual state,
+   syncs to Jotform, and resizes the iframe.
+   
+   Once checked: form becomes submittable.
+   Submission payload will show:
+     lookup_status: "FLAGGED"
+     acknowledged:  true
+   ...so staff knows this one needs manual review.
+   ========================================================== */
+function toggleAck() {
+  isAcknowledged = !isAcknowledged;
+  document.getElementById("ackRow").classList.toggle("checked", isAcknowledged);
+
+  updateHint(
+    isAcknowledged ? "warn" : "bad",
+    isAcknowledged
+      ? "Acknowledged — application will be reviewed by membership staff"
+      : "Check the box above to acknowledge and continue"
+  );
+
+  syncToJotform();
+  resizeFrame();
+}
+
+
+/* ==========================================================
+   UI STATE RENDERERS
+   ──────────────────────────────────────────────────────────
+   Five functions — one per visual state.
+   They are mutually exclusive. Calling one replaces the last.
+   ========================================================== */
+
+/* ── Loading ─────────────────────────────────────────────── */
+function setLoadingState(licenseNo) {
+  const btn = document.getElementById("checkBtn");
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Checking&hellip;';
+
+  document.getElementById("statusContainer").innerHTML =
+    '<div class="status">' +
+      '<div style="display:flex;align-items:center;gap:8px;color:var(--brand-muted);font-size:12.5px;">' +
+        '<div class="spinner dark"></div>' +
+        'Searching DBPR records for #' + escHtml(licenseNo) + '&hellip;' +
+      '</div>' +
+    '</div>';
+
+  updateHint("teal", "Verifying license…");
+}
+
+/* ── Approved ────────────────────────────────────────────── */
+function showApproved(record, licenseNo) {
+  resetBtn();
+
+  const name    = formatName(record.licensee_name);
+  const rank    = formatRank(record.rank);
+  const address = formatAddress(record);
+  const county  = record.county_name || "—";
+  const since   = formatDate(record.original_license_date);
+
+  var html =
+    '<div class="status ok">' +
+      '<span class="badge ok">&#10003; Approved</span>' +
+      '<div class="detail-grid">' +
+        '<div class="detail-item full">' +
+          '<span class="detail-label">Licensee Name</span>' +
+          '<span class="detail-value">' + escHtml(name) + '</span>' +
+        '</div>' +
+        '<div class="detail-item">' +
+          '<span class="detail-label">License #</span>' +
+          '<span class="detail-value" style="font-family:monospace;">' + escHtml(licenseNo) + '</span>' +
+        '</div>' +
+        '<div class="detail-item">' +
+          '<span class="detail-label">License Type</span>' +
+          '<span class="detail-value">' + escHtml(rank) + '</span>' +
+        '</div>' +
+        '<div class="detail-item">' +
+          '<span class="detail-label">Primary Status</span>' +
+          '<span class="detail-value">' + statusPill(record.primary_status) + '</span>' +
+        '</div>' +
+        '<div class="detail-item">' +
+          '<span class="detail-label">Secondary Status</span>' +
+          '<span class="detail-value">' + statusPill(record.secondary_status) + '</span>' +
+        '</div>';
+
+  if (address) {
+    html +=
+        '<div class="detail-item full">' +
+          '<span class="detail-label">Address on File</span>' +
+          '<span class="detail-value">' + escHtml(address) + '</span>' +
+        '</div>';
+  }
+
+  html +=
+        '<div class="detail-item">' +
+          '<span class="detail-label">County</span>' +
+          '<span class="detail-value">' + escHtml(county) + '</span>' +
+        '</div>';
+
+  if (since) {
+    html +=
+        '<div class="detail-item">' +
+          '<span class="detail-label">Licensed Since</span>' +
+          '<span class="detail-value">' + escHtml(since) + '</span>' +
+        '</div>';
+  }
+
+  html +=
+      '</div>' + /* /.detail-grid */
+      '<div class="divider"></div>' +
+      '<div class="autofill-notice">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+        'Form fields have been auto-populated from DBPR records' +
+      '</div>' +
+    '</div>';
+
+  document.getElementById("statusContainer").innerHTML = html;
+  updateHint("ok", "License verified — form is ready to submit");
+  resizeFrame();
+}
+
+/* ── Blocked (found, but status is not Current / Active) ─── */
+function showBlocked(record, licenseNo) {
+  resetBtn();
+
+  const name    = formatName(record.licensee_name);
+  const primary = record.primary_status   || "Unknown";
+  const second  = record.secondary_status || "Unknown";
+
+  /* Build readable reason string for why it failed */
+  var reasons = [];
+  if (primary !== CONFIG.APPROVED.primary_status)
+    reasons.push("Primary status is <strong>" + escHtml(primary) + "</strong> (must be <em>Current</em>)");
+  if (second !== CONFIG.APPROVED.secondary_status)
+    reasons.push("Secondary status is <strong>" + escHtml(second) + "</strong> (must be <em>Active</em>)");
+
+  var html =
+    '<div class="status bad">' +
+      '<span class="badge bad">&#9888; License Issue</span>' +
+      '<div class="detail-grid">' +
+        '<div class="detail-item full">' +
+          '<span class="detail-label">Licensee Found</span>' +
+          '<span class="detail-value">' + escHtml(name) + '</span>' +
+        '</div>' +
+        '<div class="detail-item">' +
+          '<span class="detail-label">Primary Status</span>' +
+          '<span class="detail-value">' + statusPill(primary) + '</span>' +
+        '</div>' +
+        '<div class="detail-item">' +
+          '<span class="detail-label">Secondary Status</span>' +
+          '<span class="detail-value">' + statusPill(second) + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="divider"></div>' +
+      '<div style="font-size:12px;line-height:1.6;color:var(--bad-text);margin-bottom:4px;">' +
+        '&#9888;&#65039; ' + reasons.join(" &amp; ") + '.<br/>' +
+        'REALTOR&reg; membership requires a <strong>Current / Active</strong> license. ' +
+        'Visit <a href="https://www.myfloridalicense.com" target="_blank" rel="noopener" style="color:inherit;font-weight:700;">myfloridalicense.com</a> to resolve.' +
+      '</div>' +
+      /* Ack row — agent must tick this to unlock submit */
+      '<div class="ackRow" id="ackRow" onclick="toggleAck()">' +
+        '<div class="ack-box">' +
+          '<svg class="ack-check" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+        '</div>' +
+        '<span class="ack-label">' +
+          'I understand my license is not <strong>Current / Active</strong>. ' +
+          'I acknowledge my application will be reviewed by membership staff and ' +
+          '<strong>may be denied</strong> until my license status is resolved.' +
+        '</span>' +
+      '</div>' +
+    '</div>';
+
+  document.getElementById("statusContainer").innerHTML = html;
+  updateHint("bad", "Check the box above to acknowledge and continue");
+  resizeFrame();
+}
+
+/* ── Not Found ───────────────────────────────────────────── */
+function showNotFound(licenseNo) {
+  resetBtn();
+
+  var html =
+    '<div class="status warn">' +
+      '<span class="badge warn">Not Found</span>' +
+      '<div style="font-size:12px;line-height:1.6;color:var(--warn-text);margin-bottom:4px;">' +
+        'License <strong>#' + escHtml(licenseNo) + '</strong> was not found in DBPR records.<br/>' +
+        'Double-check your number (no dashes or special characters) and try again.<br/>' +
+        'Questions? <a href="mailto:Membership@rworld.com" style="color:inherit;font-weight:700;">Membership@rworld.com</a>' +
+        ' or <a href="https://www.myfloridalicense.com" target="_blank" rel="noopener" style="color:inherit;font-weight:700;">myfloridalicense.com</a>' +
+      '</div>' +
+      /* Agent can still proceed — submission flagged for manual review */
+      '<div class="ackRow" id="ackRow" onclick="toggleAck()">' +
+        '<div class="ack-box">' +
+          '<svg class="ack-check" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+        '</div>' +
+        '<span class="ack-label">' +
+          'I understand license <strong>#' + escHtml(licenseNo) + '</strong> could not be verified. ' +
+          'I acknowledge my application will require manual review by membership staff before approval.' +
+        '</span>' +
+      '</div>' +
+    '</div>';
+
+  document.getElementById("statusContainer").innerHTML = html;
+  updateHint("bad", "Check the box above to acknowledge and continue");
+  resizeFrame();
+}
+
+/* ── Network / Server Error ──────────────────────────────── */
+function showNetworkError(err) {
+  /* Don't mark lookup complete — let them retry */
+  lookupComplete = false;
+  resetBtn();
+
+  var html =
+    '<div class="status bad">' +
+      '<span class="badge bad">Connection Error</span>' +
+      '<div style="font-size:12px;line-height:1.6;color:var(--bad-text);">' +
+        'Could not reach the verification service. Try again in a moment.<br/>' +
+        'If it keeps failing, contact <a href="mailto:MLSsupport@rworld.com" style="color:inherit;font-weight:700;">MLSsupport@rworld.com</a><br/>' +
+        '<span style="opacity:0.5;font-size:11px;">' + escHtml(String(err)) + '</span>' +
+      '</div>' +
+    '</div>';
+
+  document.getElementById("statusContainer").innerHTML = html;
+  updateHint("bad", "Verification failed — please try again");
+}
+
+
+/* ==========================================================
+   FORM FIELD AUTO-POPULATION — populateFormFields()
+   ──────────────────────────────────────────────────────────
+   Only called on APPROVED licenses. Pushes DBPR data into
+   the parent Jotform form via postMessage.
+   
+   IF JOTFORM FIELD NAMES CHANGE — only edit this section.
+   Everything above is completely field-name-agnostic.
+   
+   Mapping (Jotform unique name → NEON DB column):
+     first_40          ← licensee_name (post-comma / first name)
+     last_40           ← licensee_name (pre-comma / last name)
+     homeAddress7      ← mailing_address1 + city + state + zip
+     q48_officeName48  ← employers_name
+     q51_officeCQ51    ← employers_license_number
+   ========================================================== */
+function populateFormFields(record) {
+  /* DBPR stores names as "LAST, FIRST MIDDLE" — split on comma */
+  var firstName = "", lastName = "";
+  if (record.licensee_name && record.licensee_name.includes(",")) {
+    var parts = record.licensee_name.split(",");
+    lastName  = toTitleCase((parts[0] || "").trim());
+    firstName = toTitleCase((parts[1] || "").trim());
+  } else {
+    firstName = formatName(record.licensee_name);
+  }
+
+  trySetField("first_40",         firstName);
+  trySetField("last_40",          lastName);
+  trySetField("homeAddress7",     formatAddress(record));
+  trySetField("q48_officeName48", record.employers_name           || "");
+  trySetField("q51_officeCQ51",   record.employers_license_number || "");
+}
+
+/* Sends a setFieldValue postMessage to the parent Jotform window */
+function trySetField(fieldName, value) {
+  if (!value) return;
+  try {
+    window.parent.postMessage(
+      JSON.stringify({ action: "setFieldValue", fieldName: fieldName, value: value }),
+      "*"
+    );
+  } catch (e) {
+    /* Silent fail — field population is best-effort, not a blocker */
+    console.warn("Field populate failed:", fieldName, e);
+  }
+}
+
+
+/* ==========================================================
+   FORMATTERS
+   ──────────────────────────────────────────────────────────
+   Pure utility functions. No DOM access, no side effects.
+   Safe to call from anywhere, any time.
+   ========================================================== */
+
+/* "ACEVEDO, PAMELA A" → "Pamela A Acevedo" */
+function formatName(raw) {
+  if (!raw) return "—";
+  var parts = raw.split(",");
+  if (parts.length >= 2)
+    return toTitleCase(parts[1].trim()) + " " + toTitleCase(parts[0].trim());
+  return toTitleCase(raw.trim());
+}
+
+function toTitleCase(str) {
+  return str.toLowerCase().replace(/\w/g, function(c) { return c.toUpperCase(); });
+}
+
+/* License rank code → human-readable label */
+function formatRank(rank) {
+  var map = { SL: "Sales Associate", BK: "Broker", BL: "Broker Associate", SC: "Corporation", GP: "Partnership" };
+  if (!rank) return "—";
+  var label = map[rank.toUpperCase()];
+  return label ? label + " (" + rank + ")" : rank;
+}
+
+/* Builds a single address string from NEON mailing columns */
+function formatAddress(record) {
+  return [record.mailing_address1, record.mailing_address2,
+          record.mailing_city, record.mailing_state, record.zip]
+    .filter(Boolean).join(", ");
+}
+
+/* ISO date → "November 9, 1999" */
+function formatDate(raw) {
+  if (!raw) return null;
+  try {
+    return new Date(raw).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  } catch (e) { return raw; }
+}
+
+/* Colored inline badge pill for a DB status string */
+function statusPill(status) {
+  if (!status) return '<span class="badge warn">Unknown</span>';
+  var s = status.trim();
+  if (s === "Active" || s === "Current")
+    return '<span class="badge ok">&#10003; ' + escHtml(s) + '</span>';
+  if (s === "Inactive" || s.indexOf("Invol") !== -1)
+    return '<span class="badge bad">&#10005; ' + escHtml(s) + '</span>';
+  return '<span class="badge warn">' + escHtml(s) + '</span>';
+}
+
+
+/* ==========================================================
+   UI HELPERS
+   ========================================================== */
+
+/* Reset the button back to its default state after loading */
+function resetBtn() {
+  var btn = document.getElementById("checkBtn");
+  btn.disabled = false;
+  btn.innerHTML =
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>' +
+    '</svg> Check License';
+}
+
+/* Set the dot color + hint text below the button */
+function updateHint(dotClass, text) {
+  document.getElementById("hintDot").className  = "dot " + dotClass;
+  document.getElementById("hintText").textContent = text;
+}
+
+/* Tell Jotform to resize the iframe to fit the content height.
+   Timeout of 60ms lets the DOM finish painting before measuring. */
+function resizeFrame() {
+  setTimeout(function() {
+    JFCustomWidget.requestFrameResize({ height: document.body.scrollHeight + 24 });
+  }, 60);
+}
+
+
+/* ==========================================================
+   INPUT EVENT LISTENERS
+   ========================================================== */
+
+/* Enter key on the input = same as clicking the button */
+document.getElementById("licenseInput").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") runLookup();
+});
+
+/* If agent edits the license # after a completed lookup,
+   reset all state — can't submit stale verification data. */
+document.getElementById("licenseInput").addEventListener("input", function() {
+  if (!lookupComplete) return;
+  lookupComplete = isApproved = isAcknowledged = false;
+  currentRecord  = null;
+  document.getElementById("statusContainer").innerHTML = "";
+  updateHint("", "Verification required before submitting");
+  syncToJotform();
+});
+
+/* Primary button click */
+document.getElementById("checkBtn").addEventListener("click", runLookup);
+</script>
+
+</body>
+</html>
