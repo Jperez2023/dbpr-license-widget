@@ -9,81 +9,76 @@
 /* ==========================================================
    RWorld / BeachesMLS — DBPR License Checker Widget
    
-   VERSION:  3.0  Final Branded Build
+   VERSION:  Final — Branded & Production-Ready
    AUTHOR:   Data Systems — BeachesMLS / RWorld
    
-   MERGE LOG:
-     v1.0  Production logic — real webhook, JF hooks, autofill
-     v2.0  Sky's brand kit structure + comment sections merged
-     v3.0  Official RWorld logo embedded + colors from assets
+   Jotform custom widget that validates RE licenses against
+   DBPR before an application can submit. Hits our ActivePieces
+   webhook → NEON DB → returns status, auto-fills form fields.
    
    ──────────────────────────────────────────────────────────
-   HOW TO MAINTAIN THIS FILE
+   MAINTENANCE RULES — read before touching anything
    ──────────────────────────────────────────────────────────
-   ✅  Colors/fonts   → Edit BRAND KIT section only
-   ✅  Webhook URL    → Edit CONFIG object in <script>
-   ✅  Field mapping  → Edit populateFormFields() only
-   ⛔  Everything else → Don't touch unless you're in here
+   ✅  Colors / fonts     →  BRAND KIT section (CSS vars)
+   ✅  Webhook URL        →  CONFIG object in <script>
+   ✅  Jotform fields     →  populateFormFields() only
+   ⛔  Everything else    →  Don't touch without understanding
+                             the full flow. It's all connected.
    ========================================================== */
 
 
 /* ==========================================================
    BRAND KIT
    ──────────────────────────────────────────────────────────
-   Single source of truth for ALL visual tokens.
-   
-   Colors were eyedropped directly from the official
-   RWorld logo assets provided:
-   
-     Teal  #2BBFB3  → the palm tree circle in the logo mark
-     Navy  #1B3A5C  → the "REALTORS" wordmark text
-   
-   Change a value here and it updates everywhere. Don't go
-   hunting through the CSS to change a color manually.
+   Everything visual lives here. One change → updates everywhere.
+   Colors pulled directly from the official RWorld logo files:
+     #1B3A5C  navy  →  REALTORS wordmark
+     #2BBFB3  teal  →  palm circle + button accent
    ========================================================== */
 :root {
+  /* ── RWorld Official Brand Colors (from logo assets) ───── */
+  --brand-primary:    #1B3A5C;   /* Navy — REALTORS wordmark              */
+  --brand-primary-2:  #2BBFB3;   /* Teal — palm circle / button accent    */
 
-  /* ── RWorld Brand Colors (from official logo assets) ───── */
-  --brand-teal:       #2BBFB3;   /* Palm circle — primary accent     */
-  --brand-navy:       #1B3A5C;   /* REALTORS wordmark — primary base */
-  --brand-navy-dark:  #142D48;   /* Darker navy — hover states       */
+  /* Surface & layout */
+  --brand-bg:         #F4F7FB;
+  --brand-surface:    #FFFFFF;
+  --brand-text:       #0F172A;
+  --brand-muted:      #64748B;
+  --brand-border:     #E2E8F0;
 
-  /* ── Surfaces & Layout ─────────────────────────────────── */
-  --brand-bg:         #F4F7FB;   /* Page/iframe background           */
-  --brand-surface:    #FFFFFF;   /* Card fill                        */
-  --brand-text:       #0F172A;   /* Primary readable text            */
-  --brand-muted:      #64748B;   /* Labels, hints, secondary text    */
-  --brand-border:     #E2E8F0;   /* Borders and dividers             */
-
-  /* ── Status Colors — Approved ──────────────────────────── */
+  /* Status colors — Approved */
   --ok-bg:            #ECFDF5;
   --ok-border:        #A7F3D0;
   --ok-text:          #065F46;
 
-  /* ── Status Colors — Warning / Not Found ───────────────── */
+  /* Status colors — Warning / Not Found */
   --warn-bg:          #FFFBEB;
   --warn-border:      #FDE68A;
   --warn-text:        #92400E;
 
-  /* ── Status Colors — Blocked / Error ───────────────────── */
+  /* Status colors — Blocked / Error */
   --bad-bg:           #FEF2F2;
   --bad-border:       #FECACA;
   --bad-text:         #991B1B;
 
-  /* ── Shape & Typography ─────────────────────────────────── */
-  --font:    system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  --card-w:  400px;
-  --radius:  12px;
-  --pad:     16px;
-  --gap:     10px;
-  --shadow:  0 6px 24px rgba(2, 6, 23, 0.09);
+  /* Typography & shape */
+  --font:   system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --card-w: 380px;
+  --radius: 12px;
+  --pad:    16px;
+  --gap:    10px;
+  --shadow: 0 6px 20px rgba(2, 6, 23, 0.08);
 }
 
 
 /* ==========================================================
-   RESET & BASE
+   BASE LAYOUT
+   ──────────────────────────────────────────────────────────
+   Reset + body defaults. Box-sizing and font consistency
+   across browsers — nothing exciting, just needs to be there.
    ========================================================== */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   background: var(--brand-bg);
@@ -91,14 +86,6 @@ body {
   color: var(--brand-text);
 }
 
-
-/* ==========================================================
-   OUTER CARD
-   ──────────────────────────────────────────────────────────
-   White rounded container for the entire widget.
-   overflow:hidden is intentional — it clips the header
-   strip's top corners to match the card's border-radius.
-   ========================================================== */
 .card {
   max-width: var(--card-w);
   margin: 14px auto;
@@ -106,6 +93,7 @@ body {
   border: 1px solid var(--brand-border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+  /* overflow:hidden clips the header corners to the card radius */
   overflow: hidden;
 }
 
@@ -113,66 +101,39 @@ body {
 /* ==========================================================
    BRANDED HEADER STRIP
    ──────────────────────────────────────────────────────────
-   Navy bar pinned to the top of the card.
+   White background is intentional — the logo JPEG has a white
+   bg baked in. White-on-white = clean. No blending hacks needed.
    
-   Left  → Official RWorld horizontal logo, base64 embedded.
-            No CDN, no external request. Works in sandboxed
-            Jotform iframes with no issues.
-            
-   Right → "DBPR License Check" label in brand teal.
+   Left  → official RWorld horizontal logo, base64 embedded
+            (no CDN, no HTTP request, works in sandboxed iframes)
+   Right → "DBPR License Check" label with teal accent
    
-   Bottom border in brand teal creates a visual connection
-   to the palm circle in the logo. Intentional, not random.
-   
-   To change colors: edit --brand-teal / --brand-navy
-   in the BRAND KIT section at the top of this file.
+   The teal bottom border connects visually to the palm circle
+   in the logo. Matches brand, not an accident.
    ========================================================== */
 .card-header {
-  background: var(--brand-navy);
-  padding: 11px var(--pad);
+  background: #ffffff;
+  padding: 12px var(--pad);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  border-bottom: 3px solid var(--brand-teal);
+  gap: 12px;
+  border-bottom: 3px solid var(--brand-primary-2);
 }
 
-/* Left: icon + wordmark lockup */
-.brand-lockup {
-  display: flex;
-  align-items: center;
-  gap: 9px;
+/* Horizontal logo — base64 embedded, swap by re-encoding a new file */
+.brand-logo {
+  height: 34px;
+  width: auto;
+  display: block;
   flex-shrink: 0;
 }
 
-/* Teal circle with palm silhouette — inline SVG, zero weight */
-.brand-icon { width: 38px; height: 38px; flex-shrink: 0; }
-
-/* Text stack: REALTORS + tagline */
-.brand-wordmark { display: flex; flex-direction: column; line-height: 1.2; }
-
-.brand-wordmark-main {
-  font-size: 16px;
-  font-weight: 900;
-  color: #ffffff;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-style: italic;
-}
-
-.brand-wordmark-sub {
-  font-size: 7px;
-  font-weight: 600;
-  color: rgba(255,255,255,0.55);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-/* Right: widget label */
+/* Right-side widget label */
 .header-label {
   font-size: 10px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--brand-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   text-align: right;
@@ -180,33 +141,37 @@ body {
   white-space: nowrap;
 }
 
+/* Teal accent — "DBPR License Check" pops against the muted label */
 .header-label span {
   display: block;
-  color: var(--brand-teal);
-  font-size: 12px;
+  color: var(--brand-primary-2);
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.01em;
   text-transform: none;
 }
 
+
 /* ==========================================================
    CARD BODY
-   Padded content area beneath the header strip
+   Padded content area below the header
    ========================================================== */
-.card-body  { padding: var(--pad); }
+.card-body { padding: var(--pad); }
 
 .subtext {
   font-size: 12px;
   color: var(--brand-muted);
   margin-bottom: var(--gap);
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 
 /* ==========================================================
-   LICENSE NUMBER INPUT
+   INPUT & BUTTON
    ──────────────────────────────────────────────────────────
-   Focus ring switches to brand teal to match the header.
+   Focus ring = brand teal to match the header accent.
+   Button = teal → navy gradient. Teal hooks them in, navy
+   grounds it. Matches the brand direction from the logo.
    ========================================================== */
 .license-input {
   width: 100%;
@@ -214,28 +179,18 @@ body {
   font-size: 13px;
   font-family: var(--font);
   border-radius: 10px;
-  border: 1.5px solid var(--brand-border);
+  border: 1px solid var(--brand-border);
   color: var(--brand-text);
-  background: var(--brand-surface);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.license-input::placeholder { color: var(--brand-muted); }
-
 .license-input:focus {
   outline: none;
-  border-color: var(--brand-teal);
+  border-color: var(--brand-primary-2);
   box-shadow: 0 0 0 3px rgba(43, 191, 179, 0.18);
 }
 
-
-/* ==========================================================
-   CHECK LICENSE BUTTON
-   ──────────────────────────────────────────────────────────
-   Teal-to-navy diagonal gradient — matches the brand:
-   teal is the accent, navy is the grounding base.
-   Full width, bold, no outline style nonsense.
-   ========================================================== */
+/* Full-width teal → navy diagonal gradient — our brand colors */
 .check-btn {
   width: 100%;
   margin-top: var(--gap);
@@ -245,29 +200,28 @@ body {
   font-size: 13px;
   font-family: var(--font);
   color: #fff;
-  background: linear-gradient(135deg, var(--brand-teal), var(--brand-navy));
+  background: linear-gradient(135deg, var(--brand-primary-2), var(--brand-primary));
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  letter-spacing: 0.02em;
+  gap: 6px;
   transition: opacity 0.15s, transform 0.1s;
 }
 
-.check-btn:hover   { opacity: 0.9; }
+.check-btn:hover   { opacity: 0.92; }
 .check-btn:active  { transform: scale(0.98); }
-.check-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.check-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 
 /* ==========================================================
-   STATUS RESULT CONTAINER
+   STATUS CARD
    ──────────────────────────────────────────────────────────
-   Empty on page load. JS writes into here after every lookup.
-   Three surface variants based on result: ok / bad / warn.
-   Don't put static content inside #statusContainer — JS
-   will nuke it every time a lookup runs.
+   Injected into #statusContainer after every lookup.
+   Empty on load — don't put static content in there, it gets
+   wiped every time a new check runs.
+   Three surface variants: .ok / .bad / .warn
    ========================================================== */
 #statusContainer { margin-top: var(--gap); }
 
@@ -282,10 +236,11 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-5px); }
+  from { opacity: 0; transform: translateY(-4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Status-specific surface colors */
 .status.ok   { background: var(--ok-bg);   border-color: var(--ok-border); }
 .status.bad  { background: var(--bad-bg);  border-color: var(--bad-border); }
 .status.warn { background: var(--warn-bg); border-color: var(--warn-border); }
@@ -294,8 +249,8 @@ body {
 /* ==========================================================
    BADGE PILLS
    ──────────────────────────────────────────────────────────
-   Small uppercase label at the top of each status card.
-   Three variants: .ok / .warn / .bad
+   Uppercase pill at the top of each status card.
+   Three variants: .ok / .warn / .bad — match the status surfaces.
    ========================================================== */
 .badge {
   display: inline-block;
@@ -304,7 +259,7 @@ body {
   font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   margin-bottom: 8px;
   border: 1px solid;
 }
@@ -318,17 +273,17 @@ body {
    DETAIL GRID
    ──────────────────────────────────────────────────────────
    Two-column layout inside the approved status card.
-   Renders: name, license#, type, statuses, address, county.
-   Add .full to any .detail-item to span both columns.
+   Name, license type, statuses, address, county, etc.
+   Use .full on any .detail-item to span both columns.
    ========================================================== */
 .detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px 14px;
+  gap: 8px 12px;
   margin-top: 8px;
 }
 
-.detail-item      { display: flex; flex-direction: column; gap: 1px; }
+.detail-item { display: flex; flex-direction: column; gap: 1px; }
 .detail-item.full { grid-column: 1 / -1; }
 
 .detail-label {
@@ -345,51 +300,55 @@ body {
   color: var(--brand-text);
 }
 
-.divider { height: 1px; background: var(--brand-border); margin: 10px 0; }
+.divider {
+  height: 1px;
+  background: var(--brand-border);
+  margin: 10px 0;
+}
 
-/* Blue confirmation banner — shows after auto-populating parent form */
+/* Confirmation banner shown after we auto-fill the parent form fields */
 .autofill-notice {
   margin-top: 8px;
   padding: 7px 10px;
   background: #EFF6FF;
   border-radius: 8px;
   font-size: 11.5px;
-  color: var(--brand-navy);
+  color: var(--brand-primary);
   display: flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid #BFDBFE;
 }
 
 
 /* ==========================================================
    ACKNOWLEDGE ROW
    ──────────────────────────────────────────────────────────
-   Shown when license is Blocked or Not Found.
-   Agent MUST tick this to unlock form submission.
-   
-   Visual state machine:
-     Default  → amber border, warn-colored label text
-     .checked → green border + bg, ok-colored label text
+   Shows up when the license is blocked or not found.
+   Agent MUST tick this before the form will let them submit.
+   Submission gets flagged in the payload so staff can review.
    ========================================================== */
 .ackRow {
   display: flex;
   align-items: flex-start;
-  gap: 9px;
+  gap: 8px;
   margin-top: var(--gap);
   padding: 10px 12px;
   border-radius: 8px;
   background: #fff8f0;
-  border: 1.5px solid var(--warn-border);
+  border: 1px solid var(--warn-border);
   cursor: pointer;
-  user-select: none;
   transition: background 0.15s, border-color 0.15s;
+  user-select: none;
 }
 
-.ackRow:hover          { border-color: #f59e0b; }
-.ackRow.checked        { background: var(--ok-bg); border-color: var(--ok-border); }
+.ackRow:hover { border-color: #f59e0b; }
 
-/* The visual checkbox square */
+/* Checked state — turns green to confirm acknowledgment */
+.ackRow.checked {
+  background: var(--ok-bg);
+  border-color: var(--ok-border);
+}
+
 .ack-box {
   width: 16px;
   height: 16px;
@@ -404,25 +363,25 @@ body {
   transition: background 0.15s, border-color 0.15s;
 }
 
-/* Box turns green on check */
-.ackRow.checked .ack-box    { background: var(--ok-text); border-color: var(--ok-text); }
+.ackRow.checked .ack-box { background: var(--ok-text); border-color: var(--ok-text); }
 
-/* SVG checkmark — hidden by default, revealed by .checked on parent */
-.ack-check                  { display: none; color: #fff; }
-.ackRow.checked .ack-check  { display: block; }
+/* Hidden checkmark SVG — revealed when checked */
+.ack-check { display: none; color: #fff; }
+.ackRow.checked .ack-check { display: block; }
 
-.ack-label                  { font-size: 12px; color: var(--warn-text); line-height: 1.5; font-weight: 500; }
-.ackRow.checked .ack-label  { color: var(--ok-text); }
+.ack-label {
+  font-size: 12px;
+  color: var(--warn-text);
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.ackRow.checked .ack-label { color: var(--ok-text); }
 
 
 /* ==========================================================
-   HINT LINE
-   ──────────────────────────────────────────────────────────
-   Small colored dot + text below the button.
-   Shows current widget state at a glance.
-   Updated by updateHint() every time state changes.
-   
-   Dot classes: ok / bad / warn / teal / (none = gray)
+   REQUIRED HINT
+   Small dot + text below the input field
    ========================================================== */
 .hint {
   margin-top: 6px;
@@ -445,28 +404,19 @@ body {
 .dot.ok   { background: var(--ok-text); }
 .dot.bad  { background: #dc2626; }
 .dot.warn { background: #f59e0b; }
-.dot.teal { background: var(--brand-teal); }
 
 
 /* ==========================================================
    SPINNER
-   ──────────────────────────────────────────────────────────
-   .spinner       → white ring, used inside the button
-   .spinner.dark  → navy ring, used inside light status card
+   Used on the button while API call is in-flight
    ========================================================== */
 .spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(255,255,255,0.35);
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.65s linear infinite;
-  flex-shrink: 0;
-}
-
-.spinner.dark {
-  border-color: rgba(27, 58, 92, 0.12);
-  border-top-color: var(--brand-navy);
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -477,69 +427,30 @@ body {
 <div class="card">
 
   <!-- ======================================================
-       BRANDED HEADER STRIP
+       BRANDED HEADER
        ──────────────────────────────────────────────────────
-       Official horizontal RWorld / REALTORS logo on the left,
-       widget label on the right. Navy bg, teal bottom border.
+       White background so the RWorld logo sits naturally.
+       Logo is base64 embedded — no external files needed,
+       works inside any Jotform sandbox iframe.
        
-       Logo is base64-embedded directly in the HTML.
-       No CDN, no external request, works in any iframe sandbox.
-       
-       To update the logo:
-         1. Run: base64 -i newlogo.jpg | tr -d '
-'
-         2. Replace the src value below with the new string
-         3. Update the mime type if needed (image/jpeg or image/png)
+       Left  → official horizontal logo
+       Right → "DBPR License Check" label (teal accent)
        ====================================================== -->
   <div class="card-header">
-
-    <!-- ====================================================
-         BRAND LOCKUP — left side
-         SVG palm icon (teal circle) + wordmark text.
-         No image file. No CDN. Works in any sandbox.
-         To tweak colors edit --brand-teal / --brand-navy
-         in the BRAND KIT section at the top of this file.
-         ==================================================== -->
-    <div class="brand-lockup">
-
-      <!-- Teal palm circle — traced from official logo icon asset -->
-      <svg class="brand-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="50" cy="50" r="50" fill="#2BBFB3"/>
-        <!-- Palm trees silhouette -->
-        <g fill="#ffffff">
-          <!-- Left trunk -->
-          <path d="M36 90 Q34 70 30 55 Q33 56 36 58 Q35 70 38 90 Z"/>
-          <!-- Right trunk -->
-          <path d="M58 92 Q62 72 68 55 Q65 57 62 59 Q60 72 56 92 Z"/>
-          <!-- Left palm fronds -->
-          <path d="M30 55 Q20 45 18 35 Q25 40 28 48 Q22 38 24 28 Q30 35 30 45 Q28 35 32 27 Q36 35 33 46 Q34 36 40 30 Q42 38 37 47 Z"/>
-          <!-- Right palm fronds -->
-          <path d="M68 55 Q80 44 82 33 Q75 39 72 47 Q78 36 76 27 Q70 34 70 44 Q72 34 67 28 Q64 36 67 46 Q66 35 60 30 Q58 38 63 47 Z"/>
-          <!-- Ground tufts -->
-          <ellipse cx="37" cy="91" rx="5" ry="2.5"/>
-          <ellipse cx="58" cy="93" rx="5" ry="2.5"/>
-        </g>
-      </svg>
-
-      <!-- REALTORS wordmark text (italic bold + county tagline) -->
-      <div class="brand-wordmark">
-        <span class="brand-wordmark-main">Realtors</span>
-        <span class="brand-wordmark-sub">Broward &bull; Palm Beaches &bull; St. Lucie</span>
-      </div>
-    </div>
-
-    <!-- Widget label — right side -->
+    <img
+      class="brand-logo"
+      src="data:image/jpeg;base64,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"
+      alt="Broward, Palm Beaches &amp; St. Lucie Realtors&reg;"
+    />
     <div class="header-label">
       Membership Portal
       <span>DBPR License Check</span>
     </div>
-
-  </div>
   </div>
 
 
   <!-- ======================================================
-       CARD BODY
+       CARD BODY — everything below the header strip
        ====================================================== -->
   <div class="card-body">
 
@@ -549,7 +460,7 @@ body {
     </p>
 
     <!-- ==================================================
-         LICENSE INPUT
+         LICENSE NUMBER INPUT
          ================================================== -->
     <input
       id="licenseInput"
@@ -569,37 +480,38 @@ body {
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
            stroke="currentColor" stroke-width="2.5"
            stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8"/>
-        <path d="m21 21-4.35-4.35"/>
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
       </svg>
       Check License
     </button>
 
-    <!-- Status hint dot + text below the button -->
+    <!-- Status dot + hint text — updated by updateHint() on every state change -->
     <div class="hint">
       <span class="dot" id="hintDot"></span>
       <span id="hintText">Verification required before submitting</span>
     </div>
 
     <!-- ==================================================
-         STATUS RESULT CONTAINER
+         STATUS CONTAINER
          ──────────────────────────────────────────────────
-         JS writes into here after every lookup.
-         Empty on load — do NOT put static content in here.
+         Empty on load. JS injects the result card here after
+         every lookup. Don't put static content in here —
+         it gets wiped every time a check runs.
          ================================================== -->
     <div id="statusContainer"></div>
 
   </div><!-- /.card-body -->
+
 </div><!-- /.card -->
 
 
 <!-- ============================================================
      JOTFORM CUSTOM WIDGET API
      ──────────────────────────────────────────────────────────
-     Load this BEFORE any JFCustomWidget.* calls.
-     The subscribe("ready") hook below waits for this to fire.
-     If you call widget methods before "ready", they silently
-     fail on some Jotform versions. Don't skip the hook.
+     Load this BEFORE any JFCustomWidget.* calls below.
+     subscribe("ready") waits for this to fire.
+     Call widget methods before "ready" and they silently fail —
+     no error thrown, just broken behavior. Don't skip the hook.
      ============================================================ -->
 <script src="https://js.jotform.com/JotFormCustomWidget.min.js"></script>
 
@@ -607,20 +519,18 @@ body {
 /* ==========================================================
    CONFIGURATION
    ──────────────────────────────────────────────────────────
-   THE ONLY THING YOU NEED TO CHANGE BEFORE GOING LIVE:
+   ⚠️  THE ONE THING YOU MUST UPDATE BEFORE GOING LIVE:
+       Paste your ActivePieces webhook URL into WEBHOOK_URL.
    
-   1. Paste your ActivePieces webhook URL into WEBHOOK_URL.
-      Get it from the ActivePieces flow you set up for DBPR.
-      
-   2. Confirm APPROVED values match your DB column strings.
-      Source: public.dbpr_licenses
-                primary_status   → should be "Current"
-                secondary_status → should be "Active"
+   APPROVED values must match the DB column strings exactly.
+   Source: public.dbpr_licenses
+     primary_status   → "Current"
+     secondary_status → "Active"
    ========================================================== */
 const CONFIG = {
   WEBHOOK_URL: "https://YOUR_ACTIVEPIECES_WEBHOOK_URL",
 
-  /* License approved only when BOTH values match exactly */
+  /* Status values that mean "approved to submit normally" */
   APPROVED: {
     primary_status:   "Current",
     secondary_status: "Active",
@@ -630,24 +540,12 @@ const CONFIG = {
 
 /* ==========================================================
    STATE VARIABLES
-   ──────────────────────────────────────────────────────────
-   These are the single source of truth for validation logic.
-   Never read the DOM to determine state — always use these.
-   
-   lookupComplete    Did the user run at least one lookup?
-                     false = widget invalid, form can't submit.
-                     
-   isApproved        Is the license Current + Active in NEON?
-                     true = clean path, no ack needed.
-                     
-   isAcknowledged    Did the agent tick the ack checkbox?
-                     true = unlocks submit for flagged licenses.
-                     
-   currentRecord     Full DB record object returned by NEON.
-                     null if license was not found in the DB.
-                     
-   currentLicenseNo  Cleaned license # from the last lookup.
-                     Stored here for the submission payload.
+   These track submission logic for Jotform validation.
+   - lookupComplete: has the user run at least one lookup?
+   - isApproved:     is the license Current + Active?
+   - isAcknowledged: did user tick the ack checkbox (bad status)?
+   - currentRecord:  raw DB record from NEON (null if not found)
+   - currentLicenseNo: cleaned license number from last lookup
    ========================================================== */
 let lookupComplete   = false;
 let isApproved       = false;
@@ -659,41 +557,36 @@ let currentLicenseNo = "";
 /* ==========================================================
    JOTFORM WIDGET LIFECYCLE HOOKS
    ──────────────────────────────────────────────────────────
-   These two hooks are NON-NEGOTIABLE for any Jotform widget.
-   Sky's version was missing both — that's why it broke.
+   These two hooks are non-negotiable for any Jotform widget.
+   Sky's original version was missing both — that's why it broke.
    
    "ready"
-     Fires when the Jotform iframe is initialized and the
-     widget API is available. Wait for this before touching
-     any JFCustomWidget.* methods. Anything called before
-     "ready" fires will silently fail — no error, no warning,
-     just broken behavior. You've been warned.
+     Fires when Jotform initializes the iframe and the widget
+     API is available. NEVER call JFCustomWidget.* before this.
+     Silently fails with zero feedback if you do. Classic trap.
      
    "submit"
      Fires when the agent hits the form's Submit button.
-     We MUST call sendSubmit() here — not sendData().
-     valid: false → Jotform shows a validation error and
-                    blocks the submission. Agent stays put.
-     valid: true  → Submission goes through with our value.
+     Must call sendSubmit() here — not sendData().
+     valid: false → Jotform shows validation error, blocks submit.
+     valid: true  → submission goes through with our payload.
    ========================================================== */
 JFCustomWidget.subscribe("ready", function () {
-
-  /* Restore prior value if editing an existing submission */
+  /* If editing an existing submission, restore prior value */
   const existing = JFCustomWidget.getWidgetSetting("value");
   if (existing) {
     document.getElementById("licenseInput").value = existing;
   }
 
-  /* Start in invalid state — verification required first */
+  /* Start in invalid state — user must verify before submitting */
   syncToJotform();
 });
 
 JFCustomWidget.subscribe("submit", function () {
   /*
-    Three possible outcomes:
-    A) No lookup yet              → block (valid: false)
-    B) License is Current+Active  → allow (clean path)
-    C) Bad/missing + acknowledged → allow (flagged for staff)
+    valid = true only if:
+    A) Lookup ran AND license is Current+Active, OR
+    B) Lookup ran AND user acknowledged the bad/missing status
   */
   const canSubmit = lookupComplete && (isApproved || isAcknowledged);
 
@@ -705,27 +598,11 @@ JFCustomWidget.subscribe("submit", function () {
 
 
 /* ==========================================================
-   BUILD SUBMISSION PAYLOAD — buildSubmissionValue()
-   ──────────────────────────────────────────────────────────
-   Returns a JSON string that gets stored in this Jotform
-   field's value on submission.
+   BUILD SUBMISSION PAYLOAD
    
-   Membership staff sees this in Jotform Inbox + CSV exports.
-   Filter by lookup_status = "FLAGGED" to find manual reviews.
-   
-   Output shape:
-   {
-     license_number:            "468849",
-     lookup_status:             "APPROVED" | "FLAGGED",
-     acknowledged:              false | true,
-     licensee_name:             "Acevedo, Pamela",
-     primary_status:            "Current",
-     secondary_status:          "Active",
-     rank:                      "SL",
-     employers_name:            "XYZ Realty LLC",
-     employers_license_number:  "CQ1234567",
-     county:                    "Broward"
-   }
+   This JSON string is what gets stored in the Jotform
+   submission for this field. Staff can read it in Jotform
+   Inbox or export to see full license details + flag status.
    ========================================================== */
 function buildSubmissionValue() {
   if (!lookupComplete) return "";
@@ -736,7 +613,7 @@ function buildSubmissionValue() {
     acknowledged:   isAcknowledged,
   };
 
-  /* Attach full NEON record if we got a DB hit */
+  /* Attach full NEON record details if we got a hit */
   if (currentRecord) {
     payload.licensee_name            = currentRecord.licensee_name            || "";
     payload.primary_status           = currentRecord.primary_status           || "";
@@ -752,26 +629,27 @@ function buildSubmissionValue() {
 
 
 /* ==========================================================
-   SYNC TO JOTFORM — syncToJotform()
-   ──────────────────────────────────────────────────────────
-   Call this whenever state changes — after lookup, after ack,
-   after reset. Keeps Jotform's internal valid state in sync.
+   SYNC TO JOTFORM
    
-   Uses sendData() for live mid-form updates.
-   DO NOT call sendData() inside the "submit" hook —
-   use sendSubmit() there (they're different methods).
+   Call this any time state changes (after lookup, after ack).
+   Uses sendData() for mid-form updates (not on submit click).
+   sendSubmit() is handled separately in the "submit" hook.
    ========================================================== */
 function syncToJotform() {
   const valid = lookupComplete && (isApproved || isAcknowledged);
-  JFCustomWidget.sendData({ valid, value: buildSubmissionValue() });
+
+  JFCustomWidget.sendData({
+    valid,
+    value: buildSubmissionValue(),
+  });
 }
 
 
 /* ==========================================================
-   SAFE HTML ESCAPE — escHtml()
+   escHtml()
    ──────────────────────────────────────────────────────────
-   Run ALL user input and API data through this before
-   touching innerHTML. One XSS in a member app is one too many.
+   Run ALL user input and API data through this before touching
+   innerHTML. One XSS in a member-facing app is one too many.
    ========================================================== */
 function escHtml(str) {
   return String(str || "")
@@ -785,34 +663,31 @@ function escHtml(str) {
 
 /* ==========================================================
    MAIN LOOKUP — runLookup()
-   ──────────────────────────────────────────────────────────
-   Triggered by button click or Enter key.
    
-   Full flow:
-   1. Strip non-alphanumeric chars, reject empty input
-   2. Reset all state variables for a clean fresh lookup
-   3. Show loading spinner in button + status card
-   4. POST { license_number } to ActivePieces webhook
-      ActivePieces → queries NEON public.dbpr_licenses
-   5. Parse JSON response, route to handleResult()
-   6. handleResult() → renders UI + syncs Jotform state
-   
-   If the fetch throws (timeout, CORS, 500) → showNetworkError()
+   Called on button click or Enter key.
+   1. Validates input
+   2. Resets state
+   3. Shows loading UI
+   4. POSTs to ActivePieces webhook → NEON DB
+   5. Passes result to handleResult()
    ========================================================== */
 async function runLookup() {
   const input     = document.getElementById("licenseInput");
   const licenseNo = input.value.trim().replace(/[^a-zA-Z0-9]/g, "");
 
-  /* Flash red border on empty input instead of alert() */
+  /* Reject empty input — flash red border as feedback */
   if (!licenseNo) {
     input.style.borderColor = "#dc2626";
     input.style.boxShadow   = "0 0 0 3px rgba(220,38,38,0.15)";
-    setTimeout(() => { input.style.borderColor = ""; input.style.boxShadow = ""; }, 1500);
+    setTimeout(() => {
+      input.style.borderColor = "";
+      input.style.boxShadow   = "";
+    }, 1500);
     input.focus();
     return;
   }
 
-  /* Reset everything — fresh state for every lookup */
+  /* Reset all state for fresh lookup */
   lookupComplete   = false;
   isApproved       = false;
   isAcknowledged   = false;
@@ -828,7 +703,7 @@ async function runLookup() {
       body:    JSON.stringify({ license_number: licenseNo }),
     });
 
-    if (!res.ok) throw new Error("HTTP " + res.status);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();
     handleResult(data, licenseNo);
@@ -841,27 +716,24 @@ async function runLookup() {
 
 /* ==========================================================
    RESULT HANDLER — handleResult()
-   ──────────────────────────────────────────────────────────
-   Routes the ActivePieces response to the correct UI state.
    
-   Expected JSON shape from ActivePieces / NEON:
+   Receives the ActivePieces webhook response and routes to
+   the correct UI state.
+   
+   Expected response shape from ActivePieces:
    {
-     found:   boolean,
-     records: [{
-       license_number, licensee_name, rank,
-       primary_status, secondary_status,
-       mailing_address1, mailing_address2,
-       mailing_city, mailing_state, zip,
-       county_name, original_license_date,
-       employers_name, employers_license_number
-     }]
+     found: boolean,
+     records: [ { license_number, licensee_name, rank,
+                  primary_status, secondary_status,
+                  mailing_address1, mailing_city, mailing_state,
+                  zip, county_name, original_license_date,
+                  employers_name, employers_license_number } ]
    }
    ========================================================== */
 function handleResult(data, licenseNo) {
   lookupComplete = true;
 
-  /* No record in DB — send to not-found state */
-  if (!data.found || !data.records || !data.records.length) {
+  if (!data.found || !data.records || data.records.length === 0) {
     showNotFound(licenseNo);
     return;
   }
@@ -869,7 +741,7 @@ function handleResult(data, licenseNo) {
   const record  = data.records[0];
   currentRecord = record;
 
-  /* Both must match CONFIG.APPROVED exactly — case sensitive */
+  /* Both must match CONFIG.APPROVED values for full approval */
   const primaryOk   = (record.primary_status   || "").trim() === CONFIG.APPROVED.primary_status;
   const secondaryOk = (record.secondary_status || "").trim() === CONFIG.APPROVED.secondary_status;
   isApproved        = primaryOk && secondaryOk;
@@ -887,20 +759,15 @@ function handleResult(data, licenseNo) {
 
 /* ==========================================================
    ACKNOWLEDGE TOGGLE — toggleAck()
-   ──────────────────────────────────────────────────────────
-   Called when agent clicks the ackRow div.
-   Flips isAcknowledged, updates the visual state,
-   syncs to Jotform, and resizes the iframe.
    
-   Once checked: form becomes submittable.
-   Submission payload will show:
-     lookup_status: "FLAGGED"
-     acknowledged:  true
-   ...so staff knows this one needs manual review.
+   Attached to the acknowledgment row click.
+   Flips isAcknowledged and updates Jotform valid state.
    ========================================================== */
 function toggleAck() {
   isAcknowledged = !isAcknowledged;
-  document.getElementById("ackRow").classList.toggle("checked", isAcknowledged);
+
+  const row = document.getElementById("ackRow");
+  row.classList.toggle("checked", isAcknowledged);
 
   updateHint(
     isAcknowledged ? "warn" : "bad",
@@ -917,25 +784,25 @@ function toggleAck() {
 /* ==========================================================
    UI STATE RENDERERS
    ──────────────────────────────────────────────────────────
-   Five functions — one per visual state.
-   They are mutually exclusive. Calling one replaces the last.
+   Five functions — one per visual outcome.
+   Mutually exclusive: calling one replaces the previous state.
    ========================================================== */
 
 /* ── Loading ─────────────────────────────────────────────── */
 function setLoadingState(licenseNo) {
   const btn = document.getElementById("checkBtn");
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div> Checking&hellip;';
+  btn.innerHTML = `<div class="spinner"></div> Checking…`;
 
-  document.getElementById("statusContainer").innerHTML =
-    '<div class="status">' +
-      '<div style="display:flex;align-items:center;gap:8px;color:var(--brand-muted);font-size:12.5px;">' +
-        '<div class="spinner dark"></div>' +
-        'Searching DBPR records for #' + escHtml(licenseNo) + '&hellip;' +
-      '</div>' +
-    '</div>';
+  document.getElementById("statusContainer").innerHTML = `
+    <div class="status">
+      <div style="display:flex;align-items:center;gap:8px;color:var(--brand-muted);font-size:12.5px;">
+        <div class="spinner" style="border-top-color:var(--brand-primary);border-color:rgba(0,87,184,0.2);"></div>
+        Searching DBPR records for #${escHtml(licenseNo)}…
+      </div>
+    </div>`;
 
-  updateHint("teal", "Verifying license…");
+  updateHint("", "Verifying license…");
 }
 
 /* ── Approved ────────────────────────────────────────────── */
@@ -948,68 +815,62 @@ function showApproved(record, licenseNo) {
   const county  = record.county_name || "—";
   const since   = formatDate(record.original_license_date);
 
-  var html =
-    '<div class="status ok">' +
-      '<span class="badge ok">&#10003; Approved</span>' +
-      '<div class="detail-grid">' +
-        '<div class="detail-item full">' +
-          '<span class="detail-label">Licensee Name</span>' +
-          '<span class="detail-value">' + escHtml(name) + '</span>' +
-        '</div>' +
-        '<div class="detail-item">' +
-          '<span class="detail-label">License #</span>' +
-          '<span class="detail-value" style="font-family:monospace;">' + escHtml(licenseNo) + '</span>' +
-        '</div>' +
-        '<div class="detail-item">' +
-          '<span class="detail-label">License Type</span>' +
-          '<span class="detail-value">' + escHtml(rank) + '</span>' +
-        '</div>' +
-        '<div class="detail-item">' +
-          '<span class="detail-label">Primary Status</span>' +
-          '<span class="detail-value">' + statusPill(record.primary_status) + '</span>' +
-        '</div>' +
-        '<div class="detail-item">' +
-          '<span class="detail-label">Secondary Status</span>' +
-          '<span class="detail-value">' + statusPill(record.secondary_status) + '</span>' +
-        '</div>';
+  document.getElementById("statusContainer").innerHTML = `
+    <div class="status ok">
+      <span class="badge ok">✓ Approved</span>
 
-  if (address) {
-    html +=
-        '<div class="detail-item full">' +
-          '<span class="detail-label">Address on File</span>' +
-          '<span class="detail-value">' + escHtml(address) + '</span>' +
-        '</div>';
-  }
+      <div class="detail-grid">
+        <div class="detail-item full">
+          <span class="detail-label">Licensee Name</span>
+          <span class="detail-value">${escHtml(name)}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">License #</span>
+          <span class="detail-value" style="font-family:monospace;">${escHtml(licenseNo)}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">License Type</span>
+          <span class="detail-value">${escHtml(rank)}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Primary Status</span>
+          <span class="detail-value">${statusPill(record.primary_status)}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Secondary Status</span>
+          <span class="detail-value">${statusPill(record.secondary_status)}</span>
+        </div>
+        ${address ? `
+        <div class="detail-item full">
+          <span class="detail-label">Address on File</span>
+          <span class="detail-value">${escHtml(address)}</span>
+        </div>` : ""}
+        <div class="detail-item">
+          <span class="detail-label">County</span>
+          <span class="detail-value">${escHtml(county)}</span>
+        </div>
+        ${since ? `
+        <div class="detail-item">
+          <span class="detail-label">Licensed Since</span>
+          <span class="detail-value">${escHtml(since)}</span>
+        </div>` : ""}
+      </div>
 
-  html +=
-        '<div class="detail-item">' +
-          '<span class="detail-label">County</span>' +
-          '<span class="detail-value">' + escHtml(county) + '</span>' +
-        '</div>';
+      <div class="divider"></div>
 
-  if (since) {
-    html +=
-        '<div class="detail-item">' +
-          '<span class="detail-label">Licensed Since</span>' +
-          '<span class="detail-value">' + escHtml(since) + '</span>' +
-        '</div>';
-  }
+      <div class="autofill-notice">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Form fields have been auto-populated from DBPR records
+      </div>
+    </div>`;
 
-  html +=
-      '</div>' + /* /.detail-grid */
-      '<div class="divider"></div>' +
-      '<div class="autofill-notice">' +
-        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
-        'Form fields have been auto-populated from DBPR records' +
-      '</div>' +
-    '</div>';
-
-  document.getElementById("statusContainer").innerHTML = html;
   updateHint("ok", "License verified — form is ready to submit");
-  resizeFrame();
 }
 
-/* ── Blocked (found, but status is not Current / Active) ─── */
+/* ── Blocked (found, but not Current / Active) ──────────── */
 function showBlocked(record, licenseNo) {
   resetBtn();
 
@@ -1017,115 +878,129 @@ function showBlocked(record, licenseNo) {
   const primary = record.primary_status   || "Unknown";
   const second  = record.secondary_status || "Unknown";
 
-  /* Build readable reason string for why it failed */
-  var reasons = [];
+  /* Build human-readable reason string */
+  const reasons = [];
   if (primary !== CONFIG.APPROVED.primary_status)
-    reasons.push("Primary status is <strong>" + escHtml(primary) + "</strong> (must be <em>Current</em>)");
+    reasons.push(`Primary status is <strong>${escHtml(primary)}</strong> (must be <em>Current</em>)`);
   if (second !== CONFIG.APPROVED.secondary_status)
-    reasons.push("Secondary status is <strong>" + escHtml(second) + "</strong> (must be <em>Active</em>)");
+    reasons.push(`Secondary status is <strong>${escHtml(second)}</strong> (must be <em>Active</em>)`);
 
-  var html =
-    '<div class="status bad">' +
-      '<span class="badge bad">&#9888; License Issue</span>' +
-      '<div class="detail-grid">' +
-        '<div class="detail-item full">' +
-          '<span class="detail-label">Licensee Found</span>' +
-          '<span class="detail-value">' + escHtml(name) + '</span>' +
-        '</div>' +
-        '<div class="detail-item">' +
-          '<span class="detail-label">Primary Status</span>' +
-          '<span class="detail-value">' + statusPill(primary) + '</span>' +
-        '</div>' +
-        '<div class="detail-item">' +
-          '<span class="detail-label">Secondary Status</span>' +
-          '<span class="detail-value">' + statusPill(second) + '</span>' +
-        '</div>' +
-      '</div>' +
-      '<div class="divider"></div>' +
-      '<div style="font-size:12px;line-height:1.6;color:var(--bad-text);margin-bottom:4px;">' +
-        '&#9888;&#65039; ' + reasons.join(" &amp; ") + '.<br/>' +
-        'REALTOR&reg; membership requires a <strong>Current / Active</strong> license. ' +
-        'Visit <a href="https://www.myfloridalicense.com" target="_blank" rel="noopener" style="color:inherit;font-weight:700;">myfloridalicense.com</a> to resolve.' +
-      '</div>' +
-      /* Ack row — agent must tick this to unlock submit */
-      '<div class="ackRow" id="ackRow" onclick="toggleAck()">' +
-        '<div class="ack-box">' +
-          '<svg class="ack-check" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
-        '</div>' +
-        '<span class="ack-label">' +
-          'I understand my license is not <strong>Current / Active</strong>. ' +
-          'I acknowledge my application will be reviewed by membership staff and ' +
-          '<strong>may be denied</strong> until my license status is resolved.' +
-        '</span>' +
-      '</div>' +
-    '</div>';
+  document.getElementById("statusContainer").innerHTML = `
+    <div class="status bad">
+      <span class="badge bad">⚠ License Issue</span>
 
-  document.getElementById("statusContainer").innerHTML = html;
+      <div class="detail-grid">
+        <div class="detail-item full">
+          <span class="detail-label">Licensee Found</span>
+          <span class="detail-value">${escHtml(name)}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Primary Status</span>
+          <span class="detail-value">${statusPill(primary)}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Secondary Status</span>
+          <span class="detail-value">${statusPill(second)}</span>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div style="font-size:12px;line-height:1.6;color:var(--bad-text);margin-bottom:4px;">
+        ⚠️ ${reasons.join(" &amp; ")}.<br/>
+        REALTOR® membership requires a <strong>Current / Active</strong> license.
+        Visit <a href="https://www.myfloridalicense.com" target="_blank"
+                 rel="noopener" style="color:inherit;font-weight:700;">myfloridalicense.com</a>
+        to resolve your status.
+      </div>
+
+      <!-- Acknowledgment row — user must tick to unlock submission -->
+      <div class="ackRow" id="ackRow" onclick="toggleAck()">
+        <div class="ack-box">
+          <svg class="ack-check" width="10" height="10" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="3.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <span class="ack-label">
+          I understand my license is not <strong>Current / Active</strong>.
+          I acknowledge my application will be reviewed by membership staff
+          and <strong>may be denied</strong> until my license status is resolved.
+        </span>
+      </div>
+    </div>`;
+
   updateHint("bad", "Check the box above to acknowledge and continue");
-  resizeFrame();
 }
 
 /* ── Not Found ───────────────────────────────────────────── */
 function showNotFound(licenseNo) {
   resetBtn();
 
-  var html =
-    '<div class="status warn">' +
-      '<span class="badge warn">Not Found</span>' +
-      '<div style="font-size:12px;line-height:1.6;color:var(--warn-text);margin-bottom:4px;">' +
-        'License <strong>#' + escHtml(licenseNo) + '</strong> was not found in DBPR records.<br/>' +
-        'Double-check your number (no dashes or special characters) and try again.<br/>' +
-        'Questions? <a href="mailto:Membership@rworld.com" style="color:inherit;font-weight:700;">Membership@rworld.com</a>' +
-        ' or <a href="https://www.myfloridalicense.com" target="_blank" rel="noopener" style="color:inherit;font-weight:700;">myfloridalicense.com</a>' +
-      '</div>' +
-      /* Agent can still proceed — submission flagged for manual review */
-      '<div class="ackRow" id="ackRow" onclick="toggleAck()">' +
-        '<div class="ack-box">' +
-          '<svg class="ack-check" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
-        '</div>' +
-        '<span class="ack-label">' +
-          'I understand license <strong>#' + escHtml(licenseNo) + '</strong> could not be verified. ' +
-          'I acknowledge my application will require manual review by membership staff before approval.' +
-        '</span>' +
-      '</div>' +
-    '</div>';
+  document.getElementById("statusContainer").innerHTML = `
+    <div class="status warn">
+      <span class="badge warn">Not Found</span>
+      <div style="font-size:12px;line-height:1.6;color:var(--warn-text);margin-bottom:4px;">
+        License <strong>#${escHtml(licenseNo)}</strong> was not found in our DBPR records.<br/>
+        Double-check your number (no dashes or special characters) and try again.<br/>
+        Questions? <a href="mailto:Membership@rworld.com" style="color:inherit;font-weight:700;">
+        Membership@rworld.com</a> or
+        <a href="https://www.myfloridalicense.com" target="_blank"
+           rel="noopener" style="color:inherit;font-weight:700;">myfloridalicense.com</a>
+      </div>
 
-  document.getElementById("statusContainer").innerHTML = html;
+      <!-- Acknowledgment row for not-found — still lets them proceed -->
+      <div class="ackRow" id="ackRow" onclick="toggleAck()">
+        <div class="ack-box">
+          <svg class="ack-check" width="10" height="10" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="3.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <span class="ack-label">
+          I understand license <strong>#${escHtml(licenseNo)}</strong> could not be verified.
+          I acknowledge my application will require manual review by membership staff
+          before approval.
+        </span>
+      </div>
+    </div>`;
+
   updateHint("bad", "Check the box above to acknowledge and continue");
-  resizeFrame();
 }
 
 /* ── Network / Server Error ──────────────────────────────── */
 function showNetworkError(err) {
-  /* Don't mark lookup complete — let them retry */
   lookupComplete = false;
   resetBtn();
 
-  var html =
-    '<div class="status bad">' +
-      '<span class="badge bad">Connection Error</span>' +
-      '<div style="font-size:12px;line-height:1.6;color:var(--bad-text);">' +
-        'Could not reach the verification service. Try again in a moment.<br/>' +
-        'If it keeps failing, contact <a href="mailto:MLSsupport@rworld.com" style="color:inherit;font-weight:700;">MLSsupport@rworld.com</a><br/>' +
-        '<span style="opacity:0.5;font-size:11px;">' + escHtml(String(err)) + '</span>' +
-      '</div>' +
-    '</div>';
+  document.getElementById("statusContainer").innerHTML = `
+    <div class="status bad">
+      <span class="badge bad">Connection Error</span>
+      <div style="font-size:12px;line-height:1.6;color:var(--bad-text);">
+        Unable to reach the verification service. Please try again.<br/>
+        If the issue persists, contact
+        <a href="mailto:MLSsupport@rworld.com" style="color:inherit;font-weight:700;">
+        MLSsupport@rworld.com</a><br/>
+        <span style="opacity:0.55;font-size:11px;">${escHtml(String(err))}</span>
+      </div>
+    </div>`;
 
-  document.getElementById("statusContainer").innerHTML = html;
   updateHint("bad", "Verification failed — please try again");
 }
 
 
 /* ==========================================================
-   FORM FIELD AUTO-POPULATION — populateFormFields()
+   populateFormFields()
    ──────────────────────────────────────────────────────────
-   Only called on APPROVED licenses. Pushes DBPR data into
-   the parent Jotform form via postMessage.
+   Only called on APPROVED licenses.
+   Pushes NEON data into parent Jotform fields via postMessage.
    
-   IF JOTFORM FIELD NAMES CHANGE — only edit this section.
-   Everything above is completely field-name-agnostic.
+   ⚠️  If Jotform field names change — edit ONLY this section.
+       Everything above is completely field-name-agnostic.
    
-   Mapping (Jotform unique name → NEON DB column):
+   Jotform field name → NEON column mapping:
      first_40          ← licensee_name (post-comma / first name)
      last_40           ← licensee_name (pre-comma / last name)
      homeAddress7      ← mailing_address1 + city + state + zip
@@ -1133,33 +1008,33 @@ function showNetworkError(err) {
      q51_officeCQ51    ← employers_license_number
    ========================================================== */
 function populateFormFields(record) {
-  /* DBPR stores names as "LAST, FIRST MIDDLE" — split on comma */
-  var firstName = "", lastName = "";
+  /* Split "LAST, FIRST MIDDLE" format from DBPR */
+  let firstName = "", lastName = "";
   if (record.licensee_name && record.licensee_name.includes(",")) {
-    var parts = record.licensee_name.split(",");
+    const parts = record.licensee_name.split(",");
     lastName  = toTitleCase((parts[0] || "").trim());
     firstName = toTitleCase((parts[1] || "").trim());
   } else {
     firstName = formatName(record.licensee_name);
   }
 
-  trySetField("first_40",         firstName);
-  trySetField("last_40",          lastName);
-  trySetField("homeAddress7",     formatAddress(record));
-  trySetField("q48_officeName48", record.employers_name           || "");
-  trySetField("q51_officeCQ51",   record.employers_license_number || "");
+  trySetField("first_40",          firstName);
+  trySetField("last_40",           lastName);
+  trySetField("homeAddress7",      formatAddress(record));
+  trySetField("q48_officeName48",  record.employers_name           || "");
+  trySetField("q51_officeCQ51",    record.employers_license_number || "");
 }
 
-/* Sends a setFieldValue postMessage to the parent Jotform window */
+/* Posts setFieldValue to the parent Jotform window — silent fail is intentional */
 function trySetField(fieldName, value) {
   if (!value) return;
   try {
     window.parent.postMessage(
-      JSON.stringify({ action: "setFieldValue", fieldName: fieldName, value: value }),
+      JSON.stringify({ action: "setFieldValue", fieldName, value }),
       "*"
     );
   } catch (e) {
-    /* Silent fail — field population is best-effort, not a blocker */
+    /* Silent fail — field population is best-effort, not critical */
     console.warn("Field populate failed:", fieldName, e);
   }
 }
@@ -1169,98 +1044,121 @@ function trySetField(fieldName, value) {
    FORMATTERS
    ──────────────────────────────────────────────────────────
    Pure utility functions. No DOM access, no side effects.
-   Safe to call from anywhere, any time.
+   Safe to call from anywhere without worrying about state.
    ========================================================== */
 
-/* "ACEVEDO, PAMELA A" → "Pamela A Acevedo" */
+/* DBPR stores names as "LAST, FIRST MIDDLE" — flip and title-case it */
 function formatName(raw) {
   if (!raw) return "—";
-  var parts = raw.split(",");
+  const parts = raw.split(",");
   if (parts.length >= 2)
-    return toTitleCase(parts[1].trim()) + " " + toTitleCase(parts[0].trim());
+    return `${toTitleCase(parts[1].trim())} ${toTitleCase(parts[0].trim())}`;
   return toTitleCase(raw.trim());
 }
 
 function toTitleCase(str) {
-  return str.toLowerCase().replace(/\w/g, function(c) { return c.toUpperCase(); });
+  return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
 
-/* License rank code → human-readable label */
+/* Rank code → readable license type label */
 function formatRank(rank) {
-  var map = { SL: "Sales Associate", BK: "Broker", BL: "Broker Associate", SC: "Corporation", GP: "Partnership" };
+  const map = {
+    SL: "Sales Associate",
+    BK: "Broker",
+    BL: "Broker Associate",
+    SC: "Corporation",
+    GP: "Partnership",
+  };
   if (!rank) return "—";
-  var label = map[rank.toUpperCase()];
-  return label ? label + " (" + rank + ")" : rank;
+  return map[rank.toUpperCase()] ? `${map[rank.toUpperCase()]} (${rank})` : rank;
 }
 
-/* Builds a single address string from NEON mailing columns */
+/* Smash all the mailing columns into one address string */
 function formatAddress(record) {
-  return [record.mailing_address1, record.mailing_address2,
-          record.mailing_city, record.mailing_state, record.zip]
-    .filter(Boolean).join(", ");
+  return [
+    record.mailing_address1,
+    record.mailing_address2,
+    record.mailing_city,
+    record.mailing_state,
+    record.zip,
+  ].filter(Boolean).join(", ");
 }
 
-/* ISO date → "November 9, 1999" */
+/* ISO date → readable format for the detail card */
 function formatDate(raw) {
   if (!raw) return null;
   try {
-    return new Date(raw).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  } catch (e) { return raw; }
+    return new Date(raw).toLocaleDateString("en-US", {
+      year: "numeric", month: "long", day: "numeric",
+    });
+  } catch { return raw; }
 }
 
-/* Colored inline badge pill for a DB status string */
+/* Returns a colored badge pill for a DB status string */
 function statusPill(status) {
   if (!status) return '<span class="badge warn">Unknown</span>';
-  var s = status.trim();
+  const s = status.trim();
   if (s === "Active" || s === "Current")
-    return '<span class="badge ok">&#10003; ' + escHtml(s) + '</span>';
-  if (s === "Inactive" || s.indexOf("Invol") !== -1)
-    return '<span class="badge bad">&#10005; ' + escHtml(s) + '</span>';
-  return '<span class="badge warn">' + escHtml(s) + '</span>';
+    return `<span class="badge ok">✓ ${escHtml(s)}</span>`;
+  if (s === "Inactive" || s.includes("Invol"))
+    return `<span class="badge bad">✕ ${escHtml(s)}</span>`;
+  return `<span class="badge warn">${escHtml(s)}</span>`;
 }
 
 
 /* ==========================================================
    UI HELPERS
+   ──────────────────────────────────────────────────────────
+   Small utility functions for DOM updates. Nothing here
+   touches state — that all lives in the state vars above.
    ========================================================== */
 
-/* Reset the button back to its default state after loading */
+/* Put the button back to normal after a loading or error state */
 function resetBtn() {
-  var btn = document.getElementById("checkBtn");
+  const btn = document.getElementById("checkBtn");
   btn.disabled = false;
-  btn.innerHTML =
-    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
-      '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>' +
-    '</svg> Check License';
+  btn.innerHTML = `
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2.5"
+         stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    Check License`;
 }
 
-/* Set the dot color + hint text below the button */
+/* Update the status dot color + hint text below the button */
 function updateHint(dotClass, text) {
-  document.getElementById("hintDot").className  = "dot " + dotClass;
-  document.getElementById("hintText").textContent = text;
+  const dot  = document.getElementById("hintDot");
+  const hint = document.getElementById("hintText");
+  dot.className = `dot ${dotClass}`;
+  hint.textContent = text;
 }
 
-/* Tell Jotform to resize the iframe to fit the content height.
-   Timeout of 60ms lets the DOM finish painting before measuring. */
+/* Ask Jotform to resize the iframe — without this the status card gets clipped */
 function resizeFrame() {
-  setTimeout(function() {
-    JFCustomWidget.requestFrameResize({ height: document.body.scrollHeight + 24 });
+  setTimeout(() => {
+    JFCustomWidget.requestFrameResize({
+      height: document.body.scrollHeight + 24,
+    });
   }, 60);
 }
 
 
 /* ==========================================================
    INPUT EVENT LISTENERS
+   ──────────────────────────────────────────────────────────
+   Enter key = button click (quality of life).
+   Editing the input after a lookup resets everything — can't
+   let stale verification data get submitted with a new number.
    ========================================================== */
 
-/* Enter key on the input = same as clicking the button */
-document.getElementById("licenseInput").addEventListener("keydown", function(e) {
+/* Enter key = same as clicking the button */
+document.getElementById("licenseInput").addEventListener("keydown", e => {
   if (e.key === "Enter") runLookup();
 });
 
-/* If agent edits the license # after a completed lookup,
-   reset all state — can't submit stale verification data. */
-document.getElementById("licenseInput").addEventListener("input", function() {
+/* Edited the license # after verification? Reset — start fresh */
+document.getElementById("licenseInput").addEventListener("input", function () {
   if (!lookupComplete) return;
   lookupComplete = isApproved = isAcknowledged = false;
   currentRecord  = null;
@@ -1269,7 +1167,7 @@ document.getElementById("licenseInput").addEventListener("input", function() {
   syncToJotform();
 });
 
-/* Primary button click */
+/* Primary button click → trigger lookup */
 document.getElementById("checkBtn").addEventListener("click", runLookup);
 </script>
 
