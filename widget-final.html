@@ -528,7 +528,7 @@ body {
      secondary_status → "Active"
    ========================================================== */
 const CONFIG = {
-  WEBHOOK_URL: "https://cloud.activepieces.com/api/v1/webhooks/ApTgPgHG8eYS0TxOrZCHq",
+  WEBHOOK_URL: "https://YOUR_ACTIVEPIECES_WEBHOOK_URL",
 
   /* Status values that mean "approved to submit normally" */
   APPROVED: {
@@ -733,12 +733,16 @@ async function runLookup() {
 function handleResult(data, licenseNo) {
   lookupComplete = true;
 
-  if (!data.found || !data.records || data.records.length === 0) {
+  // ✅ ActivePieces wraps the response inside a "body" object
+  // Unwrap it first — fall back to root data if body is not present
+  const payload = data.body ?? data;
+
+  if (!payload.found || !payload.records || payload.records.length === 0) {
     showNotFound(licenseNo);
     return;
   }
 
-  const record  = data.records[0];
+  const record  = payload.records[0];
   currentRecord = record;
 
   /* Both must match CONFIG.APPROVED values for full approval */
