@@ -676,7 +676,7 @@ function escHtml(str) {
    ========================================================== */
 async function runLookup() {
   const input     = document.getElementById("licenseInput");
-  const licenseNo = input.value.trim().replace(/[^a-zA-Z0-9]/g, "");
+  const licenseNo = input.value.trim().replace(/[^a-zA-Z0-9]/g, "").replace(/^(BK|SL|BL|SC|GP)/i, ""); // strip rank prefix if user included it (e.g. BK468849 → 468849)
 
   /* Reject empty input — flash red border as feedback */
   if (!licenseNo) {
