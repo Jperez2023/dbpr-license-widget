@@ -733,16 +733,12 @@ async function runLookup() {
 function handleResult(data, licenseNo) {
   lookupComplete = true;
 
-  // ✅ ActivePieces wraps the response inside a "body" object
-  // Unwrap it first — fall back to root data if body is not present
-  const payload = data.body ?? data;
-
-  if (!payload.found || !payload.records || payload.records.length === 0) {
+  if (!data.found || !data.records || data.records.length === 0) {
     showNotFound(licenseNo);
     return;
   }
 
-  const record  = payload.records[0];
+  const record  = data.records[0];
   currentRecord = record;
 
   /* Both must match CONFIG.APPROVED values for full approval */
@@ -1077,14 +1073,17 @@ function formatRank(rank) {
   return map[rank.toUpperCase()] ? `${map[rank.toUpperCase()]} (${rank})` : rank;
 }
 
-/* Smash all the mailing columns into one address string */
+/* Smash all the address columns into one address string */
+// ✅ Fixed column names to match actual NEON dbpr_licenses schema (verified 2/19/2026)
+// Old names: mailing_address1, mailing_address2, mailing_city, mailing_state
+// Actual names: address_1, address_2, city, state
 function formatAddress(record) {
   return [
-    record.mailing_address1,
-    record.mailing_address2,
-    record.mailing_city,
-    record.mailing_state,
-    record.zip,
+    record.address_1,   // Street address line 1
+    record.address_2,   // Street address line 2 (usually null)
+    record.city,        // City
+    record.state,       // State
+    record.zip,         // ZIP code
   ].filter(Boolean).join(", ");
 }
 
