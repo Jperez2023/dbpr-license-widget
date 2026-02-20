@@ -716,8 +716,9 @@ async function runLookup() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();
-    handleResult(data, licenseNo);
-
+console.log("RAW DATA FROM WEBHOOK:", JSON.stringify(data));
+handleResult(data, licenseNo);
+     
   } catch (err) {
     if (err.name === "AbortError") {
       showNetworkError(new Error("Request timed out after 12s — please try again"));
