@@ -749,18 +749,38 @@ async function runLookup() {
 function handleResult(data, licenseNo) {
   lookupComplete = true;
 
-  // ✅ Robust unwrap — handles all three ActivePieces response shapes
-  let payload = (data && data.body)                       ? data.body
-              : (data && data.fields && data.fields.body) ? data.fields.body
-              : data;
+  // ── Unwrap ActivePieces response ──────────────────────────────────────────
+  // AP can return any of these shapes depending on version + step config:
+  //   Shape A: { status, body: "{\"found\":true,...}" }  ← body is a JSON STRING
+  //   Shape B: { status, body: { found, records } }      ← body is parsed object
+  //   Shape C: { fields: { body: { found, records } } }  ← legacy AP wrapper
+  //   Shape D: { found, records }                        ← raw / passthrough
+  //
+  // We parse string bodies first, then drill down to find { found, records }.
 
-  // Safety: if payload is still a JSON string, parse it
+  let payload = data;
+
+  // Step 1: unwrap { status, body } envelope if present
+  if (payload && payload.body !== undefined) {
+    payload = payload.body;
+  } else if (payload && payload.fields && payload.fields.body !== undefined) {
+    payload = payload.fields.body;
+  }
+
+  // Step 2: if payload is still a JSON string (AP sometimes stringifies body), parse it
   if (typeof payload === "string") {
     try { payload = JSON.parse(payload); } catch (e) {
-      showNetworkError(new Error("Invalid response format"));
+      showNetworkError(new Error("Invalid response format from webhook"));
       syncToJotform();
       return;
     }
+  }
+
+  // Step 3: some AP configs double-wrap — if we still have a .body, go one more level
+  if (payload && payload.body !== undefined && typeof payload.found === "undefined") {
+    payload = (typeof payload.body === "string")
+      ? JSON.parse(payload.body)
+      : payload.body;
   }
 
   const hasRecords = payload && Array.isArray(payload.records) && payload.records.length > 0;
