@@ -5,68 +5,46 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>DBPR License Check</title>
 
+<!--
+  IMPORTANT:
+  In most Jotform widget contexts, JFCustomWidget is injected automatically.
+  However, some preview/testing contexts do NOT inject it, which can make the widget appear "dead".
+  Loading this script makes the widget robust across Jotform preview modes.
+-->
+<script src="https://js.jotform.com/JotFormCustomWidget.min.js"></script>
+
 <style>
 /* ==========================================================
    RWorld / BeachesMLS - DBPR License Checker Widget
-
-   VERSION:  Final - Branded & Production-Ready
-   AUTHOR:   Data Systems - BeachesMLS / RWorld
-
-   Jotform custom widget that validates RE licenses against
-   DBPR before an application can submit. Hits our ActivePieces
-   webhook -> NEON DB -> returns status, auto-fills form fields.
-
-   ----------------------------------------------------------
-   MAINTENANCE RULES - read before touching anything
-   ----------------------------------------------------------
-   OK  Colors / fonts     ->  BRAND KIT section (CSS vars)
-   OK  Webhook URL        ->  CONFIG object in <script>
-   OK  Jotform fields     ->  populateFormFields() only
-   NO  Everything else    ->  Don't touch without understanding
-                             the full flow. It's all connected.
+   Full-feature build + Auto-Resize + Less dead space
    ========================================================== */
 
-
-/* ==========================================================
-   BRAND KIT
-   ----------------------------------------------------------
-   Everything visual lives here. One change -> updates everywhere.
-   Colors pulled directly from the official RWorld logo files:
-     #1B3A5C  navy  ->  REALTORS wordmark
-     #2BBFB3  teal  ->  palm circle + button accent
-   ========================================================== */
+/* BRAND KIT */
 :root {
-  /* -- RWorld Official Brand Colors (from logo assets) ----- */
-  --brand-primary:    #1B3A5C;   /* Navy - REALTORS wordmark              */
-  --brand-primary-2:  #2BBFB3;   /* Teal - palm circle / button accent    */
+  --brand-primary:    #1B3A5C;
+  --brand-primary-2:  #2BBFB3;
 
-  /* Surface & layout */
   --brand-bg:         #F4F7FB;
   --brand-surface:    #FFFFFF;
   --brand-text:       #0F172A;
   --brand-muted:      #64748B;
   --brand-border:     #E2E8F0;
 
-  /* Status colors - Approved */
   --ok-bg:            #ECFDF5;
   --ok-border:        #A7F3D0;
   --ok-text:          #065F46;
 
-  /* Status colors - Blocked */
   --bad-bg:           #FEF2F2;
   --bad-border:       #FECACA;
   --bad-text:         #7F1D1D;
 
-  /* Status colors - Not Found / Warning */
   --warn-bg:          #FFFBEB;
   --warn-border:      #FDE68A;
   --warn-text:        #7C2D12;
 
-  /* Button gradients */
-  --btn-grad-a:       #2BBFB3;   /* left */
-  --btn-grad-b:       #1B3A5C;   /* right */
+  --btn-grad-a:       #2BBFB3;
+  --btn-grad-b:       #1B3A5C;
 
-  /* Typography */
   --font: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
 }
 
@@ -80,20 +58,20 @@ body {
 }
 
 /* ==========================================================
-   CARD LAYOUT
+   CARD LAYOUT (slightly tighter than original)
    ========================================================== */
 .card {
   max-width: 560px;
-  margin: 16px auto;
+  margin: 10px auto;               /* tighter */
   background: var(--brand-surface);
   border: 1px solid var(--brand-border);
-  border-radius: 24px;
-  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.08);
+  border-radius: 22px;             /* slightly tighter */
+  box-shadow: 0 16px 34px rgba(2, 6, 23, 0.08);
   overflow: hidden;
 }
 
 .header {
-  padding: 18px 20px 12px;
+  padding: 14px 18px 10px;         /* tighter */
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -107,7 +85,7 @@ body {
 }
 
 .logoImg {
-  height: 44px;
+  height: 40px;                    /* slightly smaller */
   width: auto;
   display: block;
 }
@@ -121,17 +99,17 @@ body {
   font-weight: 700;
   letter-spacing: 0.14em;
   color: var(--brand-muted);
-  font-size: 14px;
+  font-size: 12px;                 /* tighter */
 }
 
 .titleWrap .big {
   font-weight: 800;
-  font-size: 26px;
+  font-size: 22px;                 /* tighter */
   color: var(--brand-primary-2);
 }
 
 .divider {
-  height: 5px;
+  height: 4px;                     /* tighter */
   background: var(--brand-primary-2);
 }
 
@@ -139,52 +117,52 @@ body {
    CONTENT
    ========================================================== */
 .content {
-  padding: 22px 22px 28px;
+  padding: 16px 18px 20px;         /* tighter */
 }
 
 .lead {
-  font-size: 22px;
+  font-size: 18px;                 /* tighter */
   color: var(--brand-muted);
   line-height: 1.35;
-  margin: 0 0 18px;
+  margin: 0 0 12px;                /* tighter */
 }
 
 .inputRow {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;                       /* tighter */
 }
 
 .licenseInput {
   width: 100%;
-  padding: 18px 22px;
-  font-size: 30px;
-  border-radius: 18px;
-  border: 3px solid rgba(43, 191, 179, 0.5);
+  padding: 14px 16px;              /* tighter */
+  font-size: 22px;                 /* tighter */
+  border-radius: 14px;             /* tighter */
+  border: 2px solid rgba(43, 191, 179, 0.5);
   outline: none;
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
 .licenseInput:focus {
   border-color: var(--brand-primary-2);
-  box-shadow: 0 0 0 5px rgba(43, 191, 179, 0.22);
+  box-shadow: 0 0 0 4px rgba(43, 191, 179, 0.22);
 }
 
 .btn {
   width: 100%;
   border: none;
-  border-radius: 18px;
-  padding: 18px 16px;
+  border-radius: 14px;
+  padding: 14px 14px;
   cursor: pointer;
-  font-size: 26px;
+  font-size: 20px;
   font-weight: 800;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   background: linear-gradient(90deg, var(--btn-grad-a), var(--btn-grad-b));
-  box-shadow: 0 10px 24px rgba(27, 58, 92, 0.25);
+  box-shadow: 0 10px 22px rgba(27, 58, 92, 0.22);
   transition: transform 0.08s ease, filter 0.15s ease;
 }
 
@@ -196,8 +174,8 @@ body {
 }
 
 .hint {
-  margin-top: 12px;
-  font-size: 20px;
+  margin-top: 4px;                 /* tighter */
+  font-size: 16px;                 /* tighter */
   display: flex;
   align-items: center;
   gap: 10px;
@@ -205,8 +183,8 @@ body {
 }
 
 .hint .dot {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: #ef4444;
   display: inline-block;
@@ -216,9 +194,9 @@ body {
    STATUS BOXES
    ========================================================== */
 .statusBox {
-  margin-top: 18px;
-  padding: 18px 18px 16px;
-  border-radius: 18px;
+  margin-top: 12px;                /* tighter */
+  padding: 14px 14px 12px;         /* tighter */
+  border-radius: 16px;
   border: 2px solid transparent;
   background: var(--brand-bg);
   display: none;
@@ -234,23 +212,23 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 8px;              /* tighter */
 }
 
 .pill {
   display: inline-flex;
   align-items: center;
-  padding: 7px 16px;
+  padding: 6px 14px;               /* tighter */
   border-radius: 999px;
   font-weight: 900;
   letter-spacing: 0.06em;
   border: 2px solid rgba(0,0,0,0.08);
   background: rgba(255,255,255,0.75);
-  font-size: 18px;
+  font-size: 15px;                 /* tighter */
 }
 
 .statusText {
-  font-size: 22px;
+  font-size: 16px;                 /* tighter */
   line-height: 1.35;
   margin: 0;
 }
@@ -258,8 +236,8 @@ body {
 .statusText strong { font-weight: 900; }
 
 .links {
-  margin-top: 10px;
-  font-size: 20px;
+  margin-top: 8px;                 /* tighter */
+  font-size: 16px;                 /* tighter */
 }
 
 .links a {
@@ -272,23 +250,23 @@ body {
    ACK ROW
    ========================================================== */
 .ackWrap {
-  margin-top: 14px;
+  margin-top: 10px;                /* tighter */
   border: 2px solid rgba(0,0,0,0.08);
-  border-radius: 16px;
-  padding: 14px 14px;
+  border-radius: 14px;
+  padding: 12px 12px;              /* tighter */
   background: rgba(255,255,255,0.55);
 }
 
 .ackRow {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
+  gap: 12px;
   cursor: pointer;
 }
 
 .check {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 7px;
   border: 3px solid rgba(0,0,0,0.25);
   background: white;
@@ -315,18 +293,17 @@ body {
 }
 
 .ackText {
-  font-size: 22px;
+  font-size: 16px;                 /* tighter */
   line-height: 1.35;
   font-weight: 700;
 }
 
-/* Mobile fit */
 @media (max-width: 520px) {
   .card { margin: 10px; }
-  .lead { font-size: 20px; }
-  .licenseInput { font-size: 26px; }
-  .btn { font-size: 22px; }
-  .titleWrap .big { font-size: 22px; }
+  .lead { font-size: 16px; }
+  .licenseInput { font-size: 20px; }
+  .btn { font-size: 18px; }
+  .titleWrap .big { font-size: 20px; }
 }
 </style>
 </head>
@@ -369,11 +346,10 @@ body {
 
         <div id="hint" class="hint">
           <span class="dot"></span>
-          <span>Check the box above to acknowledge and continue</span>
+          <span>Verification required before submitting</span>
         </div>
       </div>
 
-      <!-- STATUS BOX -->
       <div id="statusBox" class="statusBox warn">
         <div class="pillRow">
           <span id="statusPill" class="pill">NOT FOUND</span>
@@ -383,9 +359,8 @@ body {
 
         <div id="links" class="links"></div>
 
-        <!-- ACK BOX -->
         <div id="ackWrap" class="ackWrap" style="display:none;">
-          <div id="ackRow" class="ackRow" onclick="toggleAck()">
+          <div id="ackRow" class="ackRow">
             <div class="check" aria-hidden="true"></div>
             <div class="ackText" id="ackText"></div>
           </div>
@@ -397,98 +372,130 @@ body {
 <script>
 /* ==========================================================
    CONFIGURATION
-   ----------------------------------------------------------
-   Only change values here when deploying to different env.
    ========================================================== */
 const CONFIG = {
-  WEBHOOK_URL: "https://cloud.activepieces.com/api/v1/webhooks/ApTgPgHG8eYS0TxOrZCHq,
+  WEBHOOK_URL: "https://cloud.activepieces.com/api/v1/webhooks/ApTgPgHG8eYS0TxOrZCHq",
   APPROVED: {
-    primary_status:   "Current",
+    primary_status: "Current",
     secondary_status: "Active"
   },
   CONTACT_EMAIL: "Membership@rworld.com",
   DBPR_SITE: "myfloridalicense.com"
 };
 
-
 /* ==========================================================
    GLOBAL STATE
-   ----------------------------------------------------------
-   These variables drive validation and what gets sent to Jotform.
-   - lookupComplete:  has the user run a lookup this session?
-   - isApproved:      did DBPR return Current + Active?
-   - isAcknowledged:  if blocked/not found, did user check ack box?
-   - currentRecord:   raw DB record from NEON (null if not found)
-   - currentLicenseNo: cleaned license number from last lookup
    ========================================================== */
 let lookupComplete   = false;
 let isApproved       = false;
 let isAcknowledged   = false;
 let currentRecord    = null;
 let currentLicenseNo = "";
-let jfReady         = false;  /* Jotform API becomes safe to call only after the widget fires the "ready" event */
+let jfReady          = false;
 
+/* ==========================================================
+   SAFETY: Ensure widget still runs in environments where
+   JFCustomWidget isn't available (preview/testing).
+   ========================================================== */
+function hasJotformApi() {
+  return (typeof window.JFCustomWidget !== "undefined")
+      && (typeof window.JFCustomWidget.subscribe === "function");
+}
+
+/* ==========================================================
+   AUTO-RESIZE (kills dead space)
+   ----------------------------------------------------------
+   Keeps the Jotform iframe tightly fitted to the widget height
+   as content grows/shrinks (status cards, ack toggles, etc.).
+   ========================================================== */
+let _resizeObserver = null;
+let _resizeRafId = null;
+
+function requestResizeThrottled() {
+  if (!jfReady) return;
+  if (!hasJotformApi()) return;
+
+  if (_resizeRafId) cancelAnimationFrame(_resizeRafId);
+
+  _resizeRafId = requestAnimationFrame(() => {
+    try {
+      JFCustomWidget.requestFrameResize();
+    } catch (e) { /* ignore */ }
+  });
+}
+
+function startAutoResize() {
+  if (!jfReady) return;
+
+  const target = document.querySelector(".card") || document.body;
+
+  if (!("ResizeObserver" in window)) {
+    requestResizeThrottled();
+    window.addEventListener("load", requestResizeThrottled);
+    return;
+  }
+
+  if (_resizeObserver) {
+    try { _resizeObserver.disconnect(); } catch (e) {}
+  }
+
+  _resizeObserver = new ResizeObserver(() => requestResizeThrottled());
+  _resizeObserver.observe(target);
+
+  requestResizeThrottled();
+
+  const imgs = document.querySelectorAll("img");
+  imgs.forEach((img) => {
+    if (!img.complete) {
+      img.addEventListener("load", requestResizeThrottled, { once: true });
+      img.addEventListener("error", requestResizeThrottled, { once: true });
+    }
+  });
+}
 
 /* ==========================================================
    JOTFORM WIDGET BOOTSTRAP
-   ----------------------------------------------------------
-   Jotform provides a global object: JFCustomWidget
-   We subscribe to:
-   - ready  : widget is loaded, can call sendData()
-   - submit : user clicked submit, must call sendSubmit()
    ========================================================== */
-JFCustomWidget.subscribe("ready", function () {
-  /*
-    IMPORTANT: Jotform will ignore (or behave inconsistently with) sendData()
-    until the widget fires "ready". Many "my widget won't update" issues are
-    actually "sendData was called too early".
+function initWidget() {
+  // Bind UI handlers regardless of Jotform availability
+  wireUiEvents();
 
-    We flip this flag so syncToJotform() becomes a no-op until Jotform is ready.
-  */
-  jfReady = true;
+  // If Jotform API exists, hook ready/submit events
+  if (hasJotformApi()) {
+    JFCustomWidget.subscribe("ready", function () {
+      jfReady = true;
 
-  /* If editing an existing submission, restore prior value */
-  const existing = JFCustomWidget.getWidgetSetting("value");
-  if (existing) {
-    document.getElementById("licenseInput").value = existing;
+      // Restore prior value if the form is being edited (best-effort)
+      try {
+        const existing = JFCustomWidget.getWidgetSetting("value");
+        if (existing) document.getElementById("licenseInput").value = existing;
+      } catch (e) { /* ignore */ }
+
+      // Start invalid until verified/acknowledged
+      syncToJotform();
+
+      // Start auto-resize to remove dead space
+      startAutoResize();
+
+      requestResizeThrottled();
+    });
+
+    JFCustomWidget.subscribe("submit", function () {
+      const canSubmit = lookupComplete && (isApproved || isAcknowledged);
+
+      JFCustomWidget.sendSubmit({
+        valid: canSubmit,
+        value: buildSubmissionValue(),
+      });
+    });
+  } else {
+    // Non-Jotform preview mode: still render + function normally (no sendData)
+    jfReady = false;
   }
-
-  /* Start in invalid state - user must verify before submitting */
-  syncToJotform();
-
-  /* Ensure the iframe resizes to fit initial content */
-  resizeFrame();
-});
-
-JFCustomWidget.subscribe("submit", function () {
-  /*
-    valid = true only if:
-    A) Lookup ran AND license is Current+Active, OR
-    B) Lookup ran AND user acknowledged the bad/missing status
-  */
-  const canSubmit = lookupComplete && (isApproved || isAcknowledged);
-
-  JFCustomWidget.sendSubmit({
-    valid: canSubmit,
-    value: buildSubmissionValue(),
-  });
-});
-
+}
 
 /* ==========================================================
    BUILD SUBMISSION PAYLOAD
-
-   This JSON string is what gets stored in the Jotform
-   submission for this field. Structure:
-   {
-     license_number: "...",
-     approved: true|false,
-     acknowledged: true|false,
-     record: {...} | null
-   }
-
-   NOTE: This is stored as a string because Jotform widget
-   values are plain text. We'll store JSON text for later parsing.
    ========================================================== */
 function buildSubmissionValue() {
   return JSON.stringify({
@@ -499,31 +506,12 @@ function buildSubmissionValue() {
   });
 }
 
-
 /* ==========================================================
    syncToJotform()
-   ----------------------------------------------------------
-   Real-time updates to Jotform field state. This lets Jotform
-   treat the widget like a "required" field with validation.
-
-   IMPORTANT:
-   - sendData() updates as the user interacts.
-   - sendSubmit() is only used on submit event.
    ========================================================== */
 function syncToJotform() {
-  /*
-    Keep Jotform in sync with the widget state.
-
-    NOTE:
-    - sendData() updates the field "value" and "valid" state in real-time.
-    - sendData() is NOT the same as sendSubmit(); sendSubmit() is only for the
-      actual submit event and must be called inside the "submit" subscription.
-
-    CRITICAL:
-    Jotform is not guaranteed to accept sendData() until "ready" has fired.
-    So we bail out quietly until jfReady = true.
-  */
   if (!jfReady) return;
+  if (!hasJotformApi()) return;
 
   const valid = lookupComplete && (isApproved || isAcknowledged);
 
@@ -533,12 +521,8 @@ function syncToJotform() {
   });
 }
 
-
 /* ==========================================================
    escHtml()
-   ----------------------------------------------------------
-   Run ALL user input and API data through this before touching
-   innerHTML. One XSS in a member-facing app is one too many.
    ========================================================== */
 function escHtml(str) {
   return String(str || "")
@@ -549,22 +533,13 @@ function escHtml(str) {
     .replace(/'/g,  "&#039;");
 }
 
-
 /* ==========================================================
    MAIN LOOKUP - runLookup()
-
-   Called on button click or Enter key.
-   1. Validates input
-   2. Resets state
-   3. Shows loading UI
-   4. POSTs to ActivePieces webhook -> NEON DB
-   5. Passes result to handleResult()
    ========================================================== */
 async function runLookup() {
   const input     = document.getElementById("licenseInput");
   const licenseNo = input.value.trim().replace(/[^a-zA-Z0-9]/g, "");
 
-  /* Reject empty input - flash red border as feedback */
   if (!licenseNo) {
     input.style.borderColor = "#dc2626";
     input.style.boxShadow   = "0 0 0 3px rgba(220,38,38,0.15)";
@@ -575,132 +550,84 @@ async function runLookup() {
     return;
   }
 
-  /* Reset state before new lookup */
   lookupComplete   = false;
   isApproved       = false;
   isAcknowledged   = false;
   currentRecord    = null;
   currentLicenseNo = licenseNo;
 
-  /* UI: show loading state */
   setLoading(true);
   hideStatus();
 
   try {
     const res = await fetch(CONFIG.WEBHOOK_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ license_number: licenseNo })
     });
 
-    /* Parse response as JSON */
     const data = await res.json();
-
-    /* Hand off to result handler */
     handleResult(data, licenseNo);
   } catch (err) {
     showError(licenseNo, err);
     syncToJotform();
-    resizeFrame();
+    requestResizeThrottled();
   } finally {
     setLoading(false);
+    requestResizeThrottled();
   }
 }
 
-
 /* ==========================================================
    handleResult(data, licenseNo)
-
-   Converts API response -> UI and state flags.
-
-   FIX INCLUDED:
-   ActivePieces can wrap output in:
-   - data.body
-   - data.fields.body
+   ----------------------------------------------------------
+   Robust normalizer for ActivePieces wrappers:
+   - { body: {...} }
+   - { fields: { body: {...} } }
    - raw payload
-   This normalizer ensures the widget updates regardless.
+   - body as JSON string
    ========================================================== */
 function handleResult(data, licenseNo) {
-  /*
-    ActivePieces can return your JSON in a few different wrappers depending on:
-    - whether you're looking at the webhook trigger output
-    - whether you're looking at the "Return Response" output
-    - whether something upstream re-wrapped the payload
-
-    Shapes we support here:
-
-    1) Return Response output (common):
-       { status: 200, headers: {...}, body: { found: false, records: [] } }
-
-    2) Webhook trigger / step output (also common in debugging):
-       { fields: { body: { found: false, records: [] }, status: 200, headers: {...} } }
-
-    3) Raw payload (less common):
-       { found: false, records: [] }
-
-    This normalizer makes the UI update reliably regardless of wrapper.
-  */
   lookupComplete = true;
 
-  /* ---------------------------------------------------------
-     Normalize the response into the "payload" object we expect
-     --------------------------------------------------------- */
   let payload = (data && data.body) ? data.body
               : (data && data.fields && data.fields.body) ? data.fields.body
               : data;
 
-  /* If body came back as a JSON string for any reason, parse it */
   if (typeof payload === "string") {
-    try {
-      payload = JSON.parse(payload);
-    } catch (e) {
-      /* Leave payload as-is if it is not valid JSON */
-    }
+    try { payload = JSON.parse(payload); } catch (e) {}
   }
 
-  /* Guard: if payload is missing or malformed, treat as "not found" */
-  if (!payload || !payload.found || !payload.records || payload.records.length === 0) {
+  // "Found" but empty records should be treated as not found
+  const hasRecords = payload && Array.isArray(payload.records) && payload.records.length > 0;
+
+  if (!payload || !payload.found || !hasRecords) {
     showNotFound(licenseNo);
-
-    /* Keep Jotform's valid/value state in sync */
     syncToJotform();
-
-    /* Ensure the iframe resizes to fit the not-found card */
-    resizeFrame();
+    requestResizeThrottled();
     return;
   }
 
-  /* Found at least one record */
   const record  = payload.records[0];
   currentRecord = record;
 
-  /* Both must match CONFIG.APPROVED values for full approval */
   const primaryOk   = (record.primary_status   || "").trim() === CONFIG.APPROVED.primary_status;
   const secondaryOk = (record.secondary_status || "").trim() === CONFIG.APPROVED.secondary_status;
   isApproved        = primaryOk && secondaryOk;
 
   if (isApproved) {
     showApproved(record, licenseNo);
-    populateFormFields(record);   /* Auto-fill name, address, office */
+    populateFormFields(record);
   } else {
     showBlocked(record, licenseNo);
   }
 
-  /* Sync Jotform field state after UI changes */
   syncToJotform();
-
-  /* Resize iframe after UI changes */
-  resizeFrame();
+  requestResizeThrottled();
 }
 
-
 /* ==========================================================
-   ACKNOWLEDGE TOGGLE - toggleAck()
-
-   Attached to the acknowledgment row click.
-   Flips isAcknowledged and updates Jotform valid state.
+   ACKNOWLEDGE TOGGLE
    ========================================================== */
 function toggleAck() {
   isAcknowledged = !isAcknowledged;
@@ -712,13 +639,12 @@ function toggleAck() {
     isAcknowledged ? "warn" : "bad",
     isAcknowledged
       ? "Acknowledged - application will be reviewed by membership staff"
-      : "Check the box above to acknowledge and continue"
+      : "Verification required before submitting"
   );
 
   syncToJotform();
-  resizeFrame();
+  requestResizeThrottled();
 }
-
 
 /* ==========================================================
    UI HELPERS
@@ -737,8 +663,7 @@ function hideStatus() {
   const ackWrap = document.getElementById("ackWrap");
   ackWrap.style.display = "none";
 
-  /* Reset hint */
-  updateHint("bad", "Check the box above to acknowledge and continue");
+  updateHint("bad", "Verification required before submitting");
 }
 
 function showStatus(type, pillText, htmlText, linksHtml, showAck) {
@@ -760,11 +685,11 @@ function showStatus(type, pillText, htmlText, linksHtml, showAck) {
   ackWrap.style.display = showAck ? "block" : "none";
 
   if (showAck) {
-    /* Set checkbox text each time so it always matches license number */
     const ackText = document.getElementById("ackText");
-    ackText.innerHTML = `I understand license <strong>#${escHtml(currentLicenseNo)}</strong> could not be verified. I acknowledge my application will require manual review by membership staff before approval.`;
+    ackText.innerHTML =
+      `I understand license <strong>#${escHtml(currentLicenseNo)}</strong> could not be verified. ` +
+      `I acknowledge my application will require manual review by membership staff before approval.`;
 
-    /* Reset checkbox state visually when we show it */
     isAcknowledged = false;
     document.getElementById("ackRow").classList.remove("checked");
   }
@@ -822,12 +747,6 @@ function showError(licenseNo, err) {
   );
 }
 
-
-/* ==========================================================
-   updateHint(type, message)
-   ----------------------------------------------------------
-   Updates the line under the button with dot color + message.
-   ========================================================== */
 function updateHint(type, message) {
   const hint = document.getElementById("hint");
   const dot  = hint.querySelector(".dot");
@@ -835,80 +754,54 @@ function updateHint(type, message) {
 
   text.textContent = message || "";
 
-  if (type === "ok") {
-    dot.style.background = "#10b981";
-  } else if (type === "warn") {
-    dot.style.background = "#f59e0b";
-  } else {
-    dot.style.background = "#ef4444";
-  }
+  if (type === "ok") dot.style.background = "#10b981";
+  else if (type === "warn") dot.style.background = "#f59e0b";
+  else dot.style.background = "#ef4444";
 }
-
 
 /* ==========================================================
    populateFormFields(record)
-   ----------------------------------------------------------
-   Pushes selected DBPR values into Jotform fields.
-   You MUST match Jotform field names/IDs exactly.
    ========================================================== */
 function populateFormFields(record) {
-  /*
-    NOTE:
-    Jotform widgets can set other fields using setFieldsValue.
-    This is only safe after "ready" has fired, but by the time
-    we call this, the user has clicked and the widget is ready.
-
-    Replace the keys below with your actual Jotform field IDs.
-  */
-
+  // Replace keys with your actual Jotform field IDs (best-effort safe)
   const payload = {};
+  if (record.name) payload["agent_name"] = record.name;
 
-  /* Example mapping (replace with real field IDs) */
-  if (record.name)        payload["agent_name"]  = record.name;
-  if (record.address)     payload["agent_addr"]  = record.address;
-  if (record.city)        payload["agent_city"]  = record.city;
-  if (record.state)       payload["agent_state"] = record.state;
-  if (record.zip)         payload["agent_zip"]   = record.zip;
-  if (record.office_name) payload["office_name"] = record.office_name;
+  if (!jfReady) return;
+  if (!hasJotformApi()) return;
 
-  /* Only send if we actually have something to set */
   const keys = Object.keys(payload);
   if (keys.length === 0) return;
 
   try {
     JFCustomWidget.setFieldsValue(payload);
-  } catch (e) {
-    /* Fail silently - we do not want to block the user if field IDs are wrong */
-  }
+  } catch (e) { /* ignore */ }
 }
-
-
-/* ==========================================================
-   resizeFrame()
-   ----------------------------------------------------------
-   Jotform embeds widgets in an iframe. If the iframe height
-   is not updated, status cards can get clipped.
-   ========================================================== */
-function resizeFrame() {
-  try {
-    JFCustomWidget.requestFrameResize();
-  } catch (e) {
-    /* Some environments may not support resizing - ignore */
-  }
-}
-
 
 /* ==========================================================
    EVENT WIRING
    ========================================================== */
-document.getElementById("checkBtn").addEventListener("click", runLookup);
+function wireUiEvents() {
+  const btn = document.getElementById("checkBtn");
+  const input = document.getElementById("licenseInput");
+  const ackRow = document.getElementById("ackRow");
 
-document.getElementById("licenseInput").addEventListener("keydown", function (e) {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    runLookup();
-  }
-});
+  btn.addEventListener("click", runLookup);
+
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      runLookup();
+    }
+  });
+
+  ackRow.addEventListener("click", toggleAck);
+}
+
+/* ==========================================================
+   INIT
+   ========================================================== */
+initWidget();
 </script>
 </body>
 </html>
