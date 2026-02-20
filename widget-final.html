@@ -716,9 +716,8 @@ async function runLookup() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();
-console.log("RAW DATA FROM WEBHOOK:", JSON.stringify(data));
-handleResult(data, licenseNo);
-     
+    handleResult(data, licenseNo);
+
   } catch (err) {
     if (err.name === "AbortError") {
       showNetworkError(new Error("Request timed out after 12s — please try again"));
@@ -761,27 +760,25 @@ function handleResult(data, licenseNo) {
 
   let payload = data;
 
-  // Step 1: unwrap { status, body } envelope if present
-  if (payload && payload.body !== undefined) {
-    payload = payload.body;
-  } else if (payload && payload.fields && payload.fields.body !== undefined) {
-    payload = payload.fields.body;
-  }
-
-  // Step 2: if payload is still a JSON string (AP sometimes stringifies body), parse it
-  if (typeof payload === "string") {
-    try { payload = JSON.parse(payload); } catch (e) {
-      showNetworkError(new Error("Invalid response format from webhook"));
-      syncToJotform();
-      return;
+  // Unwrap until we find { found, records } — handles all AP response shapes including
+  // double-wrap: { status, body: { statusCode, body: { found, records } } }
+  for (let i = 0; i < 5; i++) {
+    if (!payload) break;
+    if (typeof payload === "string") {
+      try { payload = JSON.parse(payload); } catch (e) {
+        showNetworkError(new Error("Invalid response format from webhook"));
+        syncToJotform();
+        return;
+      }
     }
-  }
-
-  // Step 3: some AP configs double-wrap — if we still have a .body, go one more level
-  if (payload && payload.body !== undefined && typeof payload.found === "undefined") {
-    payload = (typeof payload.body === "string")
-      ? JSON.parse(payload.body)
-      : payload.body;
+    if (typeof payload.found !== "undefined") break;
+    if (payload.body !== undefined) {
+      payload = payload.body;
+    } else if (payload.fields && payload.fields.body !== undefined) {
+      payload = payload.fields.body;
+    } else {
+      break;
+    }
   }
 
   const hasRecords = payload && Array.isArray(payload.records) && payload.records.length > 0;
